@@ -4,9 +4,10 @@ import { useState, useTransition } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { updateArea } from "@/app/actions";
+import { updateArea, exportAllData } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Download } from "lucide-react";
 
 interface Area {
   id: number;
@@ -201,10 +202,32 @@ export function SettingsView({ areas, user }: SettingsViewProps) {
         <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
           Data
         </h2>
-        <Card className="p-4">
-          <p className="text-sm text-slate-500">
-            Data export will be available in a future update.
+        <Card className="p-4 space-y-3">
+          <p className="text-sm text-slate-400">
+            Download all your data as a JSON file.
           </p>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              startTransition(async () => {
+                const data = await exportAllData();
+                if (!data) return;
+                const blob = new Blob([JSON.stringify(data, null, 2)], {
+                  type: "application/json",
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `personal-tracker-export-${new Date().toISOString().split("T")[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              });
+            }}
+            disabled={isPending}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            {isPending ? "Exporting..." : "Export all data"}
+          </Button>
         </Card>
       </section>
     </div>

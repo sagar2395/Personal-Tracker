@@ -28,11 +28,11 @@ const menuItems = [
     phase: "",
   },
   {
-    href: "#",
+    href: "/finance",
     label: "Finance",
     description: "Allocation & investment tracking",
     icon: Wallet,
-    phase: "Phase 4",
+    phase: "",
   },
   {
     href: "/settings",

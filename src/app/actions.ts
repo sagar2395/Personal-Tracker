@@ -6,6 +6,8 @@ import { lifeAreas } from "@/db/schema/areas";
 import { goals } from "@/db/schema/goals";
 import { tasks } from "@/db/schema/tasks";
 import { reviews, wins } from "@/db/schema/reviews";
+import { financeSnapshots, financeAllocations } from "@/db/schema/finance";
+import { metrics, metricLogs } from "@/db/schema/metrics";
 import { getCurrentUser } from "@/lib/auth";
 import { computeStreak } from "@/lib/streaks";
 import { eq, and, desc, sql, ne, gte, lte, asc } from "drizzle-orm";
@@ -585,12 +587,45 @@ export async function getAreaStats() {
       )
       .get();
 
+    let lastActivityDate: string | null = null;
+    for (const habit of areaHabits) {
+      const lastLog = db
+        .select({ date: habitLogs.date })
+        .from(habitLogs)
+        .where(eq(habitLogs.habitId, habit.id))
+        .orderBy(desc(habitLogs.date))
+        .limit(1)
+        .get();
+      if (lastLog && (!lastActivityDate || lastLog.date > lastActivityDate)) {
+        lastActivityDate = lastLog.date;
+      }
+    }
+    const lastTaskCompletion = db
+      .select({ completedAt: tasks.completedAt })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.areaId, area.id),
+          eq(tasks.status, "done"),
+        )
+      )
+      .orderBy(desc(tasks.completedAt))
+      .limit(1)
+      .get();
+    if (lastTaskCompletion?.completedAt) {
+      const taskDate = lastTaskCompletion.completedAt.split("T")[0];
+      if (!lastActivityDate || taskDate > lastActivityDate) {
+        lastActivityDate = taskDate;
+      }
+    }
+
     result.push({
       area,
       activeGoals: activeGoals?.count ?? 0,
       openTasks: openTasks?.count ?? 0,
       habitCount: areaHabits.length,
       plannedMins: totalEffort?.total ?? 0,
+      lastActivityDate,
     });
   }
   return result;
@@ -889,4 +924,161 @@ export async function toggleAreaSeason(areaId: number) {
   revalidatePath("/review");
   revalidatePath("/settings");
   return { success: true };
+}
+
+// ── Finance actions ──
+
+export async function getFinanceSnapshots() {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const db = getDb();
+  return db
+    .select()
+    .from(financeSnapshots)
+    .where(eq(financeSnapshots.userId, user.id))
+    .orderBy(desc(financeSnapshots.month))
+    .all();
+}
+
+export async function getFinanceSnapshot(snapshotId: number) {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const db = getDb();
+  const snapshot = db
+    .select()
+    .from(financeSnapshots)
+    .where(
+      and(
+        eq(financeSnapshots.id, snapshotId),
+        eq(financeSnapshots.userId, user.id)
+      )
+    )
+    .get();
+  if (!snapshot) return null;
+
+  const allocations = db
+    .select()
+    .from(financeAllocations)
+    .where(eq(financeAllocations.snapshotId, snapshotId))
+    .all();
+
+  return { snapshot, allocations };
+}
+
+export async function createFinanceSnapshot(data: {
+  month: string;
+  totalIncome: number;
+  notes?: string;
+  allocations: {
+    assetClass: string;
+    targetPercent: number;
+    actualAmount: number;
+    notes?: string;
+  }[];
+}) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+
+  const result = db
+    .insert(financeSnapshots)
+    .values({
+      userId: user.id,
+      month: data.month,
+      totalIncome: data.totalIncome,
+      notes: data.notes ?? null,
+    })
+    .returning({ id: financeSnapshots.id })
+    .get();
+
+  for (const alloc of data.allocations) {
+    db.insert(financeAllocations)
+      .values({
+        snapshotId: result.id,
+        assetClass: alloc.assetClass,
+        targetPercent: alloc.targetPercent,
+        actualAmount: alloc.actualAmount,
+        notes: alloc.notes ?? null,
+      })
+      .run();
+  }
+
+  revalidatePath("/finance");
+  return { success: true };
+}
+
+export async function deleteFinanceSnapshot(snapshotId: number) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+
+  const snapshot = db
+    .select()
+    .from(financeSnapshots)
+    .where(
+      and(
+        eq(financeSnapshots.id, snapshotId),
+        eq(financeSnapshots.userId, user.id)
+      )
+    )
+    .get();
+  if (!snapshot) return { error: "Not found" };
+
+  db.delete(financeAllocations)
+    .where(eq(financeAllocations.snapshotId, snapshotId))
+    .run();
+  db.delete(financeSnapshots)
+    .where(eq(financeSnapshots.id, snapshotId))
+    .run();
+
+  revalidatePath("/finance");
+  return { success: true };
+}
+
+// ── Data export ──
+
+export async function exportAllData() {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const db = getDb();
+
+  const allAreas = db.select().from(lifeAreas).where(eq(lifeAreas.userId, user.id)).all();
+  const allHabits = db.select().from(habits).where(eq(habits.userId, user.id)).all();
+  const allHabitLogs = [];
+  for (const habit of allHabits) {
+    const logs = db.select().from(habitLogs).where(eq(habitLogs.habitId, habit.id)).all();
+    allHabitLogs.push(...logs);
+  }
+  const allGoals = db.select().from(goals).where(eq(goals.userId, user.id)).all();
+  const allTasks = db.select().from(tasks).where(eq(tasks.userId, user.id)).all();
+  const allWins = db.select().from(wins).where(eq(wins.userId, user.id)).all();
+  const allReviews = db.select().from(reviews).where(eq(reviews.userId, user.id)).all();
+  const allSnapshots = db.select().from(financeSnapshots).where(eq(financeSnapshots.userId, user.id)).all();
+  const allAllocations = [];
+  for (const snap of allSnapshots) {
+    const allocs = db.select().from(financeAllocations).where(eq(financeAllocations.snapshotId, snap.id)).all();
+    allAllocations.push(...allocs);
+  }
+  const allMetrics = db.select().from(metrics).where(eq(metrics.userId, user.id)).all();
+  const allMetricLogs = [];
+  for (const metric of allMetrics) {
+    const logs = db.select().from(metricLogs).where(eq(metricLogs.metricId, metric.id)).all();
+    allMetricLogs.push(...logs);
+  }
+
+  return {
+    exportedAt: new Date().toISOString(),
+    user: { name: user.name, email: user.email, timezone: user.timezone },
+    areas: allAreas,
+    habits: allHabits,
+    habitLogs: allHabitLogs,
+    goals: allGoals,
+    tasks: allTasks,
+    wins: allWins,
+    reviews: allReviews,
+    financeSnapshots: allSnapshots,
+    financeAllocations: allAllocations,
+    metrics: allMetrics,
+    metricLogs: allMetricLogs,
+  };
 }

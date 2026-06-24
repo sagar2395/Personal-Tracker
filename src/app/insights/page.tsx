@@ -14,16 +14,18 @@ export default async function InsightsPage() {
   const allHabits = await getHabits();
   const db = getDb();
 
-  const habitsWithLogs = allHabits.map((habit: typeof allHabits[number]) => {
-    const logs = db
-      .select()
-      .from(habitLogs)
-      .where(eq(habitLogs.habitId, habit.id))
-      .orderBy(desc(habitLogs.date))
-      .limit(90)
-      .all();
-    return { habit, logs };
-  });
+  const habitsWithLogs = await Promise.all(
+    allHabits.map(async (habit: typeof allHabits[number]) => {
+      const logs = await db
+        .select()
+        .from(habitLogs)
+        .where(eq(habitLogs.habitId, habit.id))
+        .orderBy(desc(habitLogs.date))
+        .limit(90)
+        .all();
+      return { habit, logs };
+    })
+  );
 
   return (
     <AppShell>

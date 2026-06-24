@@ -20,7 +20,7 @@ export default async function DailyCheckinPage() {
 
   const existingReview = await getReview("daily", today);
 
-  const todayLogs = db
+  const todayLogs = await db
     .select({
       habitId: habitLogs.habitId,
       status: habitLogs.status,
@@ -38,7 +38,7 @@ export default async function DailyCheckinPage() {
     .map((l: typeof todayLogs[number]) => l.habitId);
 
   const completedHabitsResult = completedHabitIds.length > 0
-    ? db
+    ? await db
         .select({ id: habits.id, title: habits.title })
         .from(habits)
         .where(
@@ -50,7 +50,7 @@ export default async function DailyCheckinPage() {
     : [];
   const completedHabits = completedHabitsResult.filter((h: typeof completedHabitsResult[number]) => completedHabitIds.includes(h.id));
 
-  const completedTasks = db
+  const completedTasks = await db
     .select({ id: tasks.id, title: tasks.title })
     .from(tasks)
     .where(

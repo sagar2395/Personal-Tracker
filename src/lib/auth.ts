@@ -40,7 +40,7 @@ function parseSessionToken(token: string): number | null {
 export async function login(email: string, password: string): Promise<boolean> {
   try {
     const db = getDb();
-    const user = db.select().from(users).where(eq(users.email, email)).get();
+    const user = await db.select().from(users).where(eq(users.email, email)).get();
     console.log("[AUTH] Login attempt:", { email, found: !!user });
 
     if (!user) {
@@ -92,6 +92,6 @@ export async function getCurrentUser() {
   if (!userId) return null;
 
   const db = getDb();
-  const user = db.select().from(users).where(eq(users.id, userId)).get();
+  const user = await db.select().from(users).where(eq(users.id, userId)).get();
   return user || null;
 }

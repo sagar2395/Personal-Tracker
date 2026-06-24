@@ -17,7 +17,7 @@ export async function getAreas() {
   const user = await getCurrentUser();
   if (!user) return [];
   const db = getDb();
-  return db
+  return await db
     .select()
     .from(lifeAreas)
     .where(eq(lifeAreas.userId, user.id))
@@ -29,7 +29,7 @@ export async function getHabits() {
   const user = await getCurrentUser();
   if (!user) return [];
   const db = getDb();
-  return db
+  return await db
     .select()
     .from(habits)
     .where(and(eq(habits.userId, user.id), eq(habits.archived, false)))
@@ -41,14 +41,14 @@ export async function getHabitWithLogs(habitId: number) {
   const user = await getCurrentUser();
   if (!user) return null;
   const db = getDb();
-  const habit = db
+  const habit = await db
     .select()
     .from(habits)
     .where(and(eq(habits.id, habitId), eq(habits.userId, user.id)))
     .get();
   if (!habit) return null;
 
-  const logs = db
+  const logs = await db
     .select()
     .from(habitLogs)
     .where(eq(habitLogs.habitId, habitId))
@@ -78,7 +78,7 @@ export async function getTodayHabits() {
     new Date().getDay()
   ];
 
-  const allHabits = db
+  const allHabits = await db
     .select()
     .from(habits)
     .where(and(eq(habits.userId, user.id), eq(habits.archived, false)))
@@ -97,13 +97,13 @@ export async function getTodayHabits() {
 
   const results = [];
   for (const habit of todayHabits) {
-    const todayLog = db
+    const todayLog = await db
       .select()
       .from(habitLogs)
       .where(and(eq(habitLogs.habitId, habit.id), eq(habitLogs.date, today)))
       .get();
 
-    const recentLogs = db
+    const recentLogs = await db
       .select()
       .from(habitLogs)
       .where(eq(habitLogs.habitId, habit.id))
@@ -122,7 +122,7 @@ export async function getTodayHabits() {
       recentLogs.map((l: typeof recentLogs[number]) => ({ date: l.date, status: l.status as never }))
     );
 
-    const area = db
+    const area = await db
       .select()
       .from(lifeAreas)
       .where(eq(lifeAreas.id, habit.areaId))
@@ -148,19 +148,19 @@ export async function logHabit(
   const db = getDb();
   const today = new Date().toISOString().split("T")[0];
 
-  const existing = db
+  const existing = await db
     .select()
     .from(habitLogs)
     .where(and(eq(habitLogs.habitId, habitId), eq(habitLogs.date, today)))
     .get();
 
   if (existing) {
-    db.update(habitLogs)
+    await db.update(habitLogs)
       .set({ status, value: value ?? null, note: note ?? null })
       .where(eq(habitLogs.id, existing.id))
       .run();
   } else {
-    db.insert(habitLogs)
+    await db.insert(habitLogs)
       .values({ habitId, date: today, status, value: value ?? null, note: note ?? null })
       .run();
   }
@@ -189,13 +189,13 @@ export async function createHabit(data: {
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
 
-  const maxSort = db
+  const maxSort = await db
     .select({ max: sql<number>`COALESCE(MAX(sort_order), 0)` })
     .from(habits)
     .where(eq(habits.userId, user.id))
     .get();
 
-  db.insert(habits)
+  await db.insert(habits)
     .values({
       userId: user.id,
       areaId: data.areaId,
@@ -224,7 +224,7 @@ export async function deleteHabit(habitId: number) {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
-  db.update(habits)
+  await db.update(habits)
     .set({ archived: true })
     .where(and(eq(habits.id, habitId), eq(habits.userId, user.id)))
     .run();
@@ -243,7 +243,7 @@ export async function getGoals(status?: GoalStatus) {
   const db = getDb();
   const conditions = [eq(goals.userId, user.id)];
   if (status) conditions.push(eq(goals.status, status));
-  return db
+  return await db
     .select()
     .from(goals)
     .where(and(...conditions))
@@ -255,27 +255,27 @@ export async function getGoalWithTasks(goalId: number) {
   const user = await getCurrentUser();
   if (!user) return null;
   const db = getDb();
-  const goal = db
+  const goal = await db
     .select()
     .from(goals)
     .where(and(eq(goals.id, goalId), eq(goals.userId, user.id)))
     .get();
   if (!goal) return null;
 
-  const goalTasks = db
+  const goalTasks = await db
     .select()
     .from(tasks)
     .where(and(eq(tasks.goalId, goalId), ne(tasks.status, "cancelled")))
     .orderBy(tasks.createdAt)
     .all();
 
-  const area = db
+  const area = await db
     .select()
     .from(lifeAreas)
     .where(eq(lifeAreas.id, goal.areaId))
     .get();
 
-  const goalHabits = db
+  const goalHabits = await db
     .select()
     .from(habits)
     .where(and(eq(habits.goalId, goalId), eq(habits.archived, false)))
@@ -301,7 +301,7 @@ export async function createGoal(data: {
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
 
-  const activeInArea = db
+  const activeInArea = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(goals)
     .where(
@@ -320,13 +320,13 @@ export async function createGoal(data: {
     };
   }
 
-  const maxSort = db
+  const maxSort = await db
     .select({ max: sql<number>`COALESCE(MAX(sort_order), 0)` })
     .from(goals)
     .where(eq(goals.userId, user.id))
     .get();
 
-  db.insert(goals)
+  await db.insert(goals)
     .values({
       userId: user.id,
       areaId: data.areaId,
@@ -351,7 +351,7 @@ export async function updateGoalStatus(goalId: number, status: GoalStatus) {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
-  db.update(goals)
+  await db.update(goals)
     .set({
       status,
       completedAt: status === "done" ? new Date().toISOString() : null,
@@ -381,7 +381,7 @@ export async function getTasks(filters?: {
   if (filters?.goalId) conditions.push(eq(tasks.goalId, filters.goalId));
   if (filters?.scheduledFor) conditions.push(eq(tasks.scheduledFor, filters.scheduledFor));
   if (filters?.isMIT) conditions.push(eq(tasks.isMIT, true));
-  return db
+  return await db
     .select()
     .from(tasks)
     .where(and(...conditions))
@@ -404,7 +404,7 @@ export async function createTask(data: {
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
 
-  db.insert(tasks)
+  await db.insert(tasks)
     .values({
       userId: user.id,
       areaId: data.areaId,
@@ -428,7 +428,7 @@ export async function updateTaskStatus(taskId: number, status: TaskStatus) {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
-  db.update(tasks)
+  await db.update(tasks)
     .set({
       status,
       completedAt: status === "done" ? new Date().toISOString() : null,
@@ -444,7 +444,7 @@ export async function toggleMIT(taskId: number) {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
-  const task = db
+  const task = await db
     .select()
     .from(tasks)
     .where(and(eq(tasks.id, taskId), eq(tasks.userId, user.id)))
@@ -453,7 +453,7 @@ export async function toggleMIT(taskId: number) {
 
   if (!task.isMIT) {
     const today = new Date().toISOString().split("T")[0];
-    const currentMITs = db
+    const currentMITs = await db
       .select({ count: sql<number>`COUNT(*)` })
       .from(tasks)
       .where(
@@ -469,7 +469,7 @@ export async function toggleMIT(taskId: number) {
     }
   }
 
-  db.update(tasks)
+  await db.update(tasks)
     .set({ isMIT: !task.isMIT })
     .where(eq(tasks.id, taskId))
     .run();
@@ -485,7 +485,7 @@ export async function captureWin(text: string, areaId?: number) {
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
   const today = new Date().toISOString().split("T")[0];
-  db.insert(wins)
+  await db.insert(wins)
     .values({
       userId: user.id,
       areaId: areaId ?? null,
@@ -504,7 +504,7 @@ export async function getRecentWins(days: number = 7) {
   const since = new Date();
   since.setDate(since.getDate() - days);
   const sinceStr = since.toISOString().split("T")[0];
-  return db
+  return await db
     .select()
     .from(wins)
     .where(and(eq(wins.userId, user.id), gte(wins.date, sinceStr)))
@@ -518,7 +518,7 @@ export async function getTodayMITs() {
   const user = await getCurrentUser();
   if (!user) return [];
   const db = getDb();
-  return db
+  return await db
     .select()
     .from(tasks)
     .where(
@@ -539,7 +539,7 @@ export async function getAreaStats() {
   const user = await getCurrentUser();
   if (!user) return [];
   const db = getDb();
-  const areas = db
+  const areas = await db
     .select()
     .from(lifeAreas)
     .where(eq(lifeAreas.userId, user.id))
@@ -548,7 +548,7 @@ export async function getAreaStats() {
 
   const result = [];
   for (const area of areas) {
-    const activeGoals = db
+    const activeGoals = await db
       .select({ count: sql<number>`COUNT(*)` })
       .from(goals)
       .where(
@@ -559,7 +559,7 @@ export async function getAreaStats() {
       )
       .get();
 
-    const openTasks = db
+    const openTasks = await db
       .select({ count: sql<number>`COUNT(*)` })
       .from(tasks)
       .where(
@@ -570,13 +570,13 @@ export async function getAreaStats() {
       )
       .get();
 
-    const areaHabits = db
+    const areaHabits = await db
       .select()
       .from(habits)
       .where(and(eq(habits.areaId, area.id), eq(habits.archived, false)))
       .all();
 
-    const totalEffort = db
+    const totalEffort = await db
       .select({ total: sql<number>`COALESCE(SUM(effort_mins), 0)` })
       .from(tasks)
       .where(
@@ -589,7 +589,7 @@ export async function getAreaStats() {
 
     let lastActivityDate: string | null = null;
     for (const habit of areaHabits) {
-      const lastLog = db
+      const lastLog = await db
         .select({ date: habitLogs.date })
         .from(habitLogs)
         .where(eq(habitLogs.habitId, habit.id))
@@ -600,7 +600,7 @@ export async function getAreaStats() {
         lastActivityDate = lastLog.date;
       }
     }
-    const lastTaskCompletion = db
+    const lastTaskCompletion = await db
       .select({ completedAt: tasks.completedAt })
       .from(tasks)
       .where(
@@ -642,7 +642,7 @@ export async function getUpcomingDeadlines(days: number = 7) {
   future.setDate(future.getDate() + days);
   const futureStr = future.toISOString().split("T")[0];
 
-  const deadlineTasks = db
+  const deadlineTasks = await db
     .select()
     .from(tasks)
     .where(
@@ -657,7 +657,7 @@ export async function getUpcomingDeadlines(days: number = 7) {
     .orderBy(asc(tasks.dueDate))
     .all();
 
-  const deadlineGoals = db
+  const deadlineGoals = await db
     .select()
     .from(goals)
     .where(
@@ -693,7 +693,7 @@ export async function saveReview(data: {
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
 
-  const existing = db
+  const existing = await db
     .select()
     .from(reviews)
     .where(
@@ -706,7 +706,7 @@ export async function saveReview(data: {
     .get();
 
   if (existing) {
-    db.update(reviews)
+    await db.update(reviews)
       .set({
         mood: data.mood ?? null,
         energy: data.energy ?? null,
@@ -719,7 +719,7 @@ export async function saveReview(data: {
       .where(eq(reviews.id, existing.id))
       .run();
   } else {
-    db.insert(reviews)
+    await db.insert(reviews)
       .values({
         userId: user.id,
         type: data.type,
@@ -744,7 +744,7 @@ export async function getReview(type: ReviewType, date: string) {
   const user = await getCurrentUser();
   if (!user) return null;
   const db = getDb();
-  return db
+  return await db
     .select()
     .from(reviews)
     .where(
@@ -763,7 +763,7 @@ export async function getReviewHistory(type?: ReviewType, limit: number = 30) {
   const db = getDb();
   const conditions = [eq(reviews.userId, user.id)];
   if (type) conditions.push(eq(reviews.type, type));
-  return db
+  return await db
     .select()
     .from(reviews)
     .where(and(...conditions))
@@ -782,14 +782,14 @@ export async function getWeeklyReviewData() {
   const weekAgoStr = weekAgo.toISOString().split("T")[0];
   const todayStr = today.toISOString().split("T")[0];
 
-  const weekWins = db
+  const weekWins = await db
     .select()
     .from(wins)
     .where(and(eq(wins.userId, user.id), gte(wins.date, weekAgoStr)))
     .orderBy(desc(wins.date))
     .all();
 
-  const completedTasks = db
+  const completedTasks = await db
     .select()
     .from(tasks)
     .where(
@@ -801,7 +801,7 @@ export async function getWeeklyReviewData() {
     )
     .all();
 
-  const allHabits = db
+  const allHabits = await db
     .select()
     .from(habits)
     .where(and(eq(habits.userId, user.id), eq(habits.archived, false)))
@@ -809,7 +809,7 @@ export async function getWeeklyReviewData() {
 
   const habitSummaries = [];
   for (const habit of allHabits) {
-    const weekLogs = db
+    const weekLogs = await db
       .select()
       .from(habitLogs)
       .where(
@@ -821,7 +821,7 @@ export async function getWeeklyReviewData() {
       )
       .all();
 
-    const area = db
+    const area = await db
       .select()
       .from(lifeAreas)
       .where(eq(lifeAreas.id, habit.areaId))
@@ -866,7 +866,7 @@ export async function getWeeklyReviewData() {
     }
   }
 
-  const areas = db
+  const areas = await db
     .select()
     .from(lifeAreas)
     .where(eq(lifeAreas.userId, user.id))
@@ -896,7 +896,7 @@ export async function updateArea(
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
-  db.update(lifeAreas)
+  await db.update(lifeAreas)
     .set(data)
     .where(and(eq(lifeAreas.id, areaId), eq(lifeAreas.userId, user.id)))
     .run();
@@ -910,13 +910,13 @@ export async function toggleAreaSeason(areaId: number) {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
-  const area = db
+  const area = await db
     .select()
     .from(lifeAreas)
     .where(and(eq(lifeAreas.id, areaId), eq(lifeAreas.userId, user.id)))
     .get();
   if (!area) return { error: "Area not found" };
-  db.update(lifeAreas)
+  await db.update(lifeAreas)
     .set({ isSeason: !area.isSeason })
     .where(eq(lifeAreas.id, areaId))
     .run();
@@ -932,7 +932,7 @@ export async function getFinanceSnapshots() {
   const user = await getCurrentUser();
   if (!user) return [];
   const db = getDb();
-  return db
+  return await db
     .select()
     .from(financeSnapshots)
     .where(eq(financeSnapshots.userId, user.id))
@@ -944,7 +944,7 @@ export async function getFinanceSnapshot(snapshotId: number) {
   const user = await getCurrentUser();
   if (!user) return null;
   const db = getDb();
-  const snapshot = db
+  const snapshot = await db
     .select()
     .from(financeSnapshots)
     .where(
@@ -956,7 +956,7 @@ export async function getFinanceSnapshot(snapshotId: number) {
     .get();
   if (!snapshot) return null;
 
-  const allocations = db
+  const allocations = await db
     .select()
     .from(financeAllocations)
     .where(eq(financeAllocations.snapshotId, snapshotId))
@@ -980,7 +980,7 @@ export async function createFinanceSnapshot(data: {
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
 
-  const result = db
+  const result = await db
     .insert(financeSnapshots)
     .values({
       userId: user.id,
@@ -992,7 +992,7 @@ export async function createFinanceSnapshot(data: {
     .get();
 
   for (const alloc of data.allocations) {
-    db.insert(financeAllocations)
+    await db.insert(financeAllocations)
       .values({
         snapshotId: result.id,
         assetClass: alloc.assetClass,
@@ -1012,7 +1012,7 @@ export async function deleteFinanceSnapshot(snapshotId: number) {
   if (!user) return { error: "Not authenticated" };
   const db = getDb();
 
-  const snapshot = db
+  const snapshot = await db
     .select()
     .from(financeSnapshots)
     .where(
@@ -1024,10 +1024,10 @@ export async function deleteFinanceSnapshot(snapshotId: number) {
     .get();
   if (!snapshot) return { error: "Not found" };
 
-  db.delete(financeAllocations)
+  await db.delete(financeAllocations)
     .where(eq(financeAllocations.snapshotId, snapshotId))
     .run();
-  db.delete(financeSnapshots)
+  await db.delete(financeSnapshots)
     .where(eq(financeSnapshots.id, snapshotId))
     .run();
 
@@ -1042,27 +1042,27 @@ export async function exportAllData() {
   if (!user) return null;
   const db = getDb();
 
-  const allAreas = db.select().from(lifeAreas).where(eq(lifeAreas.userId, user.id)).all();
-  const allHabits = db.select().from(habits).where(eq(habits.userId, user.id)).all();
+  const allAreas = await db.select().from(lifeAreas).where(eq(lifeAreas.userId, user.id)).all();
+  const allHabits = await db.select().from(habits).where(eq(habits.userId, user.id)).all();
   const allHabitLogs = [];
   for (const habit of allHabits) {
-    const logs = db.select().from(habitLogs).where(eq(habitLogs.habitId, habit.id)).all();
+    const logs = await db.select().from(habitLogs).where(eq(habitLogs.habitId, habit.id)).all();
     allHabitLogs.push(...logs);
   }
-  const allGoals = db.select().from(goals).where(eq(goals.userId, user.id)).all();
-  const allTasks = db.select().from(tasks).where(eq(tasks.userId, user.id)).all();
-  const allWins = db.select().from(wins).where(eq(wins.userId, user.id)).all();
-  const allReviews = db.select().from(reviews).where(eq(reviews.userId, user.id)).all();
-  const allSnapshots = db.select().from(financeSnapshots).where(eq(financeSnapshots.userId, user.id)).all();
+  const allGoals = await db.select().from(goals).where(eq(goals.userId, user.id)).all();
+  const allTasks = await db.select().from(tasks).where(eq(tasks.userId, user.id)).all();
+  const allWins = await db.select().from(wins).where(eq(wins.userId, user.id)).all();
+  const allReviews = await db.select().from(reviews).where(eq(reviews.userId, user.id)).all();
+  const allSnapshots = await db.select().from(financeSnapshots).where(eq(financeSnapshots.userId, user.id)).all();
   const allAllocations = [];
   for (const snap of allSnapshots) {
-    const allocs = db.select().from(financeAllocations).where(eq(financeAllocations.snapshotId, snap.id)).all();
+    const allocs = await db.select().from(financeAllocations).where(eq(financeAllocations.snapshotId, snap.id)).all();
     allAllocations.push(...allocs);
   }
-  const allMetrics = db.select().from(metrics).where(eq(metrics.userId, user.id)).all();
+  const allMetrics = await db.select().from(metrics).where(eq(metrics.userId, user.id)).all();
   const allMetricLogs = [];
   for (const metric of allMetrics) {
-    const logs = db.select().from(metricLogs).where(eq(metricLogs.metricId, metric.id)).all();
+    const logs = await db.select().from(metricLogs).where(eq(metricLogs.metricId, metric.id)).all();
     allMetricLogs.push(...logs);
   }
 

@@ -8,9 +8,10 @@ import { tasks } from "@/db/schema/tasks";
 import { reviews, wins } from "@/db/schema/reviews";
 import { financeSnapshots, financeAllocations } from "@/db/schema/finance";
 import { metrics, metricLogs } from "@/db/schema/metrics";
+import { appUsageLogs, achievements, userMotivation } from "@/db/schema/engagement";
 import { getCurrentUser } from "@/lib/auth";
 import { computeStreak } from "@/lib/streaks";
-import { eq, and, desc, sql, ne, gte, lte, asc } from "drizzle-orm";
+import { eq, and, desc, sql, ne, gte, lte, asc, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getAreas() {
@@ -1033,6 +1034,346 @@ export async function deleteFinanceSnapshot(snapshotId: number) {
 
   revalidatePath("/finance");
   return { success: true };
+}
+
+// ── Engagement actions ──
+
+export async function recordAppUsage() {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const db = getDb();
+  const today = new Date().toISOString().split("T")[0];
+
+  const existing = await db
+    .select()
+    .from(appUsageLogs)
+    .where(and(eq(appUsageLogs.userId, user.id), eq(appUsageLogs.date, today)))
+    .get();
+
+  if (!existing) {
+    await db.insert(appUsageLogs)
+      .values({ userId: user.id, date: today })
+      .run();
+  }
+
+  return await getAppUsageStreak();
+}
+
+export async function getAppUsageStreak() {
+  const user = await getCurrentUser();
+  if (!user) return { currentStreak: 0, longestStreak: 0, totalDays: 0, lastUsedDate: null as string | null };
+  const db = getDb();
+
+  const logs = await db
+    .select({ date: appUsageLogs.date })
+    .from(appUsageLogs)
+    .where(eq(appUsageLogs.userId, user.id))
+    .orderBy(desc(appUsageLogs.date))
+    .all();
+
+  if (logs.length === 0) {
+    return { currentStreak: 0, longestStreak: 0, totalDays: 0, lastUsedDate: null };
+  }
+
+  const dates = logs.map((l: { date: string }) => l.date);
+  const lastUsedDate = dates[0];
+
+  let currentStreak = 1;
+  const today = new Date().toISOString().split("T")[0];
+  const startDate = dates[0] === today ? today : dates[0];
+
+  for (let i = 1; i < dates.length; i++) {
+    const prev = new Date(dates[i - 1]);
+    const curr = new Date(dates[i]);
+    const diffDays = Math.round((prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays === 1) {
+      currentStreak++;
+    } else {
+      break;
+    }
+  }
+
+  if (dates[0] !== today) {
+    const lastDate = new Date(dates[0]);
+    const todayDate = new Date(today);
+    const gapDays = Math.round((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (gapDays > 1) {
+      currentStreak = 0;
+    }
+  }
+
+  let longestStreak = 1;
+  let tempStreak = 1;
+  for (let i = 1; i < dates.length; i++) {
+    const prev = new Date(dates[i - 1]);
+    const curr = new Date(dates[i]);
+    const diffDays = Math.round((prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays === 1) {
+      tempStreak++;
+      longestStreak = Math.max(longestStreak, tempStreak);
+    } else {
+      tempStreak = 1;
+    }
+  }
+  longestStreak = Math.max(longestStreak, currentStreak);
+
+  return { currentStreak, longestStreak, totalDays: dates.length, lastUsedDate };
+}
+
+export async function checkAndUnlockAchievements(): Promise<string[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const db = getDb();
+  const newlyUnlocked: string[] = [];
+
+  const existingAchievements = await db
+    .select({ key: achievements.key })
+    .from(achievements)
+    .where(eq(achievements.userId, user.id))
+    .all();
+  const unlockedKeys = new Set(existingAchievements.map((a: { key: string }) => a.key));
+
+  async function unlock(key: string) {
+    if (unlockedKeys.has(key)) return;
+    await db.insert(achievements).values({ userId: user.id, key }).run();
+    unlockedKeys.add(key);
+    newlyUnlocked.push(key);
+  }
+
+  const usageStreak = await getAppUsageStreak();
+  if (usageStreak.currentStreak >= 3) await unlock("app_streak_3");
+  if (usageStreak.currentStreak >= 7) await unlock("app_streak_7");
+  if (usageStreak.currentStreak >= 14) await unlock("app_streak_14");
+  if (usageStreak.currentStreak >= 30) await unlock("app_streak_30");
+  if (usageStreak.currentStreak >= 100) await unlock("app_streak_100");
+
+  const habitCount = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(habits)
+    .where(and(eq(habits.userId, user.id), eq(habits.archived, false)))
+    .get();
+  if ((habitCount?.count ?? 0) >= 1) await unlock("first_habit");
+  if ((habitCount?.count ?? 0) >= 5) await unlock("five_habits");
+
+  const logCount = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(habitLogs)
+    .innerJoin(habits, eq(habitLogs.habitId, habits.id))
+    .where(eq(habits.userId, user.id))
+    .get();
+  if ((logCount?.count ?? 0) >= 1) await unlock("first_log");
+
+  const goalCount = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(goals)
+    .where(eq(goals.userId, user.id))
+    .get();
+  if ((goalCount?.count ?? 0) >= 1) await unlock("first_goal");
+
+  const completedGoals = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(goals)
+    .where(and(eq(goals.userId, user.id), eq(goals.status, "done")))
+    .get();
+  if ((completedGoals?.count ?? 0) >= 1) await unlock("goal_complete");
+
+  const completedTasks = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(tasks)
+    .where(and(eq(tasks.userId, user.id), eq(tasks.status, "done")))
+    .get();
+  if ((completedTasks?.count ?? 0) >= 10) await unlock("ten_tasks");
+  if ((completedTasks?.count ?? 0) >= 50) await unlock("fifty_tasks");
+
+  const dailyReviewCount = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(reviews)
+    .where(and(eq(reviews.userId, user.id), eq(reviews.type, "daily")))
+    .get();
+  if ((dailyReviewCount?.count ?? 0) >= 1) await unlock("first_review");
+
+  const weeklyReviewCount = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(reviews)
+    .where(and(eq(reviews.userId, user.id), eq(reviews.type, "weekly")))
+    .get();
+  if ((weeklyReviewCount?.count ?? 0) >= 1) await unlock("weekly_review");
+
+  const winCount = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(wins)
+    .where(eq(wins.userId, user.id))
+    .get();
+  if ((winCount?.count ?? 0) >= 10) await unlock("ten_wins");
+  if ((winCount?.count ?? 0) >= 50) await unlock("fifty_wins");
+
+  const motivation = await db
+    .select()
+    .from(userMotivation)
+    .where(eq(userMotivation.userId, user.id))
+    .get();
+  if (motivation?.whyStatement) await unlock("set_why");
+
+  const allHabits = await db
+    .select()
+    .from(habits)
+    .where(and(eq(habits.userId, user.id), eq(habits.archived, false)))
+    .all();
+
+  for (const habit of allHabits) {
+    const recentLogs = await db
+      .select()
+      .from(habitLogs)
+      .where(eq(habitLogs.habitId, habit.id))
+      .orderBy(desc(habitLogs.date))
+      .limit(100)
+      .all();
+    const cadenceDays = habit.cadenceDays ? JSON.parse(habit.cadenceDays) : null;
+    const streak = computeStreak(
+      habit.type as "build" | "limit",
+      habit.graceDaysAllowed,
+      habit.cadence,
+      cadenceDays,
+      recentLogs.map((l: typeof recentLogs[number]) => ({
+        date: l.date,
+        status: l.status as never,
+      }))
+    );
+    if (streak.currentStreak >= 7) await unlock("habit_streak_7");
+    if (streak.currentStreak >= 30) await unlock("habit_streak_30");
+    if (streak.currentStreak >= 100) await unlock("habit_streak_100");
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const dayOfWeek = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date().getDay()];
+  const todayHabits = allHabits.filter((h: typeof allHabits[number]) => {
+    if (h.cadence === "daily") return true;
+    if (h.cadence === "weekdays") return !["sat", "sun"].includes(dayOfWeek);
+    if (h.cadence === "custom" && h.cadenceDays) {
+      const days = JSON.parse(h.cadenceDays) as string[];
+      return days.includes(dayOfWeek);
+    }
+    return true;
+  });
+
+  if (todayHabits.length > 0) {
+    let allDone = true;
+    for (const h of todayHabits) {
+      const log = await db
+        .select()
+        .from(habitLogs)
+        .where(and(eq(habitLogs.habitId, h.id), eq(habitLogs.date, today)))
+        .get();
+      if (!log) {
+        allDone = false;
+        break;
+      }
+    }
+    if (allDone) await unlock("perfect_day");
+  }
+
+  if (usageStreak.lastUsedDate) {
+    const lastDate = new Date(usageStreak.lastUsedDate);
+    const todayDate = new Date(today);
+    const gap = Math.round((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (gap >= 3) {
+      const todayLogs = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(habitLogs)
+        .innerJoin(habits, eq(habitLogs.habitId, habits.id))
+        .where(and(eq(habits.userId, user.id), eq(habitLogs.date, today)))
+        .get();
+      if ((todayLogs?.count ?? 0) >= 1) await unlock("comeback");
+    }
+  }
+
+  const recentDailyReviews = await db
+    .select({ date: reviews.date })
+    .from(reviews)
+    .where(and(eq(reviews.userId, user.id), eq(reviews.type, "daily")))
+    .orderBy(desc(reviews.date))
+    .limit(10)
+    .all();
+  if (recentDailyReviews.length >= 7) {
+    let streak = 1;
+    for (let i = 1; i < recentDailyReviews.length; i++) {
+      const prev = new Date(recentDailyReviews[i - 1].date);
+      const curr = new Date(recentDailyReviews[i].date);
+      const diff = Math.round((prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff === 1) {
+        streak++;
+        if (streak >= 7) { await unlock("review_streak_7"); break; }
+      } else {
+        break;
+      }
+    }
+  }
+
+  return newlyUnlocked;
+}
+
+export async function getUnlockedAchievements() {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const db = getDb();
+  return await db
+    .select()
+    .from(achievements)
+    .where(eq(achievements.userId, user.id))
+    .orderBy(desc(achievements.unlockedAt))
+    .all();
+}
+
+export async function getWhyStatement() {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const db = getDb();
+  const motivation = await db
+    .select()
+    .from(userMotivation)
+    .where(eq(userMotivation.userId, user.id))
+    .get();
+  return motivation?.whyStatement ?? null;
+}
+
+export async function saveWhyStatement(statement: string) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+
+  const existing = await db
+    .select()
+    .from(userMotivation)
+    .where(eq(userMotivation.userId, user.id))
+    .get();
+
+  if (existing) {
+    await db.update(userMotivation)
+      .set({ whyStatement: statement, updatedAt: new Date().toISOString() })
+      .where(eq(userMotivation.userId, user.id))
+      .run();
+  } else {
+    await db.insert(userMotivation)
+      .values({ userId: user.id, whyStatement: statement })
+      .run();
+  }
+
+  revalidatePath("/");
+  revalidatePath("/settings");
+  return { success: true };
+}
+
+export async function getEngagementData() {
+  const user = await getCurrentUser();
+  if (!user) return null;
+
+  const [usageStreak, whyStatement, unlockedAchievements] = await Promise.all([
+    getAppUsageStreak(),
+    getWhyStatement(),
+    getUnlockedAchievements(),
+  ]);
+
+  return { usageStreak, whyStatement, unlockedAchievements };
 }
 
 // ── Data export ──

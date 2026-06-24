@@ -4,10 +4,11 @@ import { useState, useTransition } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { updateArea, exportAllData } from "@/app/actions";
+import { Textarea } from "@/components/ui/textarea";
+import { updateArea, exportAllData, saveWhyStatement } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Download, Bell, BellOff } from "lucide-react";
+import { Download, Bell, BellOff, Heart } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 interface Area {
@@ -24,15 +25,18 @@ interface Area {
 interface SettingsViewProps {
   areas: Area[];
   user: { name: string; email: string; timezone: string | null };
+  whyStatement?: string | null;
 }
 
-export function SettingsView({ areas, user }: SettingsViewProps) {
+export function SettingsView({ areas, user, whyStatement }: SettingsViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [editingArea, setEditingArea] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState("");
   const [editHours, setEditHours] = useState("");
+  const [editingWhy, setEditingWhy] = useState(false);
+  const [whyText, setWhyText] = useState(whyStatement || "");
 
   function startEdit(area: Area) {
     setEditingArea(area.id);
@@ -79,6 +83,74 @@ export function SettingsView({ areas, user }: SettingsViewProps) {
             <span className="text-slate-500">Timezone</span>
             <span>{user.timezone || "Not set"}</span>
           </div>
+        </Card>
+      </section>
+
+      {/* My Why */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+          <div className="flex items-center gap-2">
+            <Heart className="h-4 w-4 text-rose-400" />
+            My Why
+          </div>
+        </h2>
+        <Card className="p-4 space-y-3">
+          {editingWhy ? (
+            <>
+              <Textarea
+                value={whyText}
+                onChange={(e) => setWhyText(e.target.value)}
+                placeholder="Why are you tracking your habits and goals? What drives you?"
+                rows={3}
+              />
+              <p className="text-[10px] text-slate-600">
+                This shows on your home screen as a daily reminder of your purpose.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    startTransition(async () => {
+                      await saveWhyStatement(whyText.trim());
+                      setEditingWhy(false);
+                      router.refresh();
+                    });
+                  }}
+                  disabled={!whyText.trim() || isPending}
+                  className="flex-1"
+                >
+                  Save
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setWhyText(whyStatement || "");
+                    setEditingWhy(false);
+                  }}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                {whyStatement ? (
+                  <p className="text-sm text-slate-300">{whyStatement}</p>
+                ) : (
+                  <p className="text-sm text-slate-500 italic">
+                    No &quot;Why&quot; statement set yet. Tap edit to add one.
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setEditingWhy(true)}
+                className="text-xs text-indigo-400 hover:text-indigo-300 ml-2 flex-shrink-0"
+              >
+                Edit
+              </button>
+            </div>
+          )}
         </Card>
       </section>
 

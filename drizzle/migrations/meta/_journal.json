@@ -8,6 +8,13 @@
       "when": 1782266166868,
       "tag": "0000_whole_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1782323189566,
+      "tag": "0001_supreme_ken_ellis",
+      "breakpoints": true
     }
   ]
 }

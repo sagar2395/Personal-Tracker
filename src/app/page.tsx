@@ -5,9 +5,13 @@ import {
   getTodayMITs,
   getUpcomingDeadlines,
   getRecentWins,
+  recordAppUsage,
+  getEngagementData,
+  checkAndUnlockAchievements,
 } from "./actions";
 import { AppShell } from "@/components/app-shell";
 import { TodayView } from "@/components/today-view";
+import { getDailyQuote, getWelcomeBackMessage } from "@/lib/achievements";
 
 export default async function Home() {
   const user = await getCurrentUser();
@@ -19,6 +23,10 @@ export default async function Home() {
     getUpcomingDeadlines(7),
     getRecentWins(3),
   ]);
+
+  const usageStreak = await recordAppUsage();
+  const engagementData = await getEngagementData();
+  const newlyUnlocked = await checkAndUnlockAchievements();
 
   const today = new Date();
   const greeting =
@@ -45,6 +53,16 @@ export default async function Home() {
     })),
   ];
 
+  const dailyQuote = getDailyQuote();
+  const welcomeBack = engagementData?.usageStreak.lastUsedDate
+    ? getWelcomeBackMessage(
+        Math.round(
+          (new Date().getTime() - new Date(engagementData.usageStreak.lastUsedDate).getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
+      )
+    : null;
+
   return (
     <AppShell>
       <div className="mx-auto max-w-lg px-4 py-6 space-y-6">
@@ -66,6 +84,12 @@ export default async function Home() {
           mits={mits}
           deadlines={deadlines}
           recentWins={recentWins}
+          appStreak={usageStreak}
+          whyStatement={engagementData?.whyStatement ?? null}
+          dailyQuote={dailyQuote}
+          welcomeBack={welcomeBack}
+          unlockedAchievements={engagementData?.unlockedAchievements ?? []}
+          newlyUnlocked={newlyUnlocked}
         />
       </div>
     </AppShell>

@@ -9,6 +9,7 @@ import {
   Wallet,
   Settings,
   LogOut,
+  Award,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -18,6 +19,13 @@ const menuItems = [
     label: "Insights",
     description: "Trends, consistency, and analytics",
     icon: BarChart3,
+    phase: "",
+  },
+  {
+    href: "/achievements",
+    label: "Achievements",
+    description: "Badges, streaks, and milestones",
+    icon: Award,
     phase: "",
   },
   {

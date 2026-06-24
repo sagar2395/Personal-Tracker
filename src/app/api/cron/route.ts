@@ -3,8 +3,9 @@ import { pushSubscriptions } from "@/db/schema/notifications";
 import { habits, habitLogs } from "@/db/schema/habits";
 import { tasks } from "@/db/schema/tasks";
 import { users } from "@/db/schema/users";
+import { appUsageLogs } from "@/db/schema/engagement";
 import { sendPushNotification } from "@/lib/push";
-import { eq, and, sql, ne } from "drizzle-orm";
+import { eq, and, sql, ne, desc } from "drizzle-orm";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -97,6 +98,47 @@ export async function GET(request: Request) {
             tag: `nudge-${habit.id}`,
             url: "/habits",
           });
+        }
+      }
+    }
+
+    // Streak protection nudge (afternoon, if they haven't opened the app today)
+    if (hour >= 14 && hour <= 16) {
+      const todayUsage = await db
+        .select()
+        .from(appUsageLogs)
+        .where(
+          and(eq(appUsageLogs.userId, user.id), eq(appUsageLogs.date, today))
+        )
+        .get();
+
+      if (!todayUsage) {
+        const recentUsage = await db
+          .select({ date: appUsageLogs.date })
+          .from(appUsageLogs)
+          .where(eq(appUsageLogs.userId, user.id))
+          .orderBy(desc(appUsageLogs.date))
+          .limit(2)
+          .all();
+
+        if (recentUsage.length > 0) {
+          let streakDays = 0;
+          for (let i = 0; i < recentUsage.length; i++) {
+            const d = new Date(recentUsage[i].date);
+            const expected = new Date(localTime);
+            expected.setDate(expected.getDate() - (i + 1));
+            if (d.toISOString().split("T")[0] === expected.toISOString().split("T")[0]) {
+              streakDays++;
+            } else break;
+          }
+          if (streakDays >= 2) {
+            notifications.push({
+              title: `Don't break your ${streakDays}-day streak!`,
+              body: "Quick check-in takes 30 seconds. Your future self will thank you.",
+              tag: "streak-protect",
+              url: "/",
+            });
+          }
         }
       }
     }

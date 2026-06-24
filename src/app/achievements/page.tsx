@@ -1,18 +1,18 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getAreas, getWhyStatement } from "@/app/actions";
+import { getUnlockedAchievements, getAppUsageStreak } from "@/app/actions";
 import { AppShell } from "@/components/app-shell";
-import { SettingsView } from "@/components/settings-view";
+import { AchievementsView } from "@/components/achievements-view";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
-export default async function SettingsPage() {
+export default async function AchievementsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [areas, whyStatement] = await Promise.all([
-    getAreas(),
-    getWhyStatement(),
+  const [unlocked, streak] = await Promise.all([
+    getUnlockedAchievements(),
+    getAppUsageStreak(),
   ]);
 
   return (
@@ -25,18 +25,10 @@ export default async function SettingsPage() {
           >
             <ChevronLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Achievements</h1>
         </div>
 
-        <SettingsView
-          areas={areas}
-          user={{
-            name: user.name,
-            email: user.email,
-            timezone: user.timezone,
-          }}
-          whyStatement={whyStatement}
-        />
+        <AchievementsView unlocked={unlocked} streak={streak} />
       </div>
     </AppShell>
   );

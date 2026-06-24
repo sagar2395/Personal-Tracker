@@ -7,3 +7,4 @@ export { metrics, metricLogs } from "./metrics";
 export { reviews, wins } from "./reviews";
 export { pushSubscriptions } from "./notifications";
 export { financeSnapshots, financeAllocations } from "./finance";
+export { appUsageLogs, achievements, userMotivation } from "./engagement";

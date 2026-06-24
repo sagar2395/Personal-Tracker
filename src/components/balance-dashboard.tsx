@@ -1,8 +1,12 @@
 "use client";
 
+import { useTransition } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toggleAreaSeason } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, Pause } from "lucide-react";
 
 interface AreaStat {
   area: {
@@ -17,6 +21,7 @@ interface AreaStat {
   openTasks: number;
   habitCount: number;
   plannedMins: number;
+  lastActivityDate?: string | null;
 }
 
 interface BalanceDashboardProps {
@@ -24,6 +29,16 @@ interface BalanceDashboardProps {
 }
 
 export function BalanceDashboard({ areaStats }: BalanceDashboardProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function handleToggleSeason(areaId: number) {
+    startTransition(async () => {
+      await toggleAreaSeason(areaId);
+      router.refresh();
+    });
+  }
+
   const totalTargetHours = areaStats.reduce(
     (sum, s) => sum + (s.area.isSeason ? s.area.targetWeeklyHours : 0),
     0
@@ -65,7 +80,7 @@ export function BalanceDashboard({ areaStats }: BalanceDashboardProps) {
       </Card>
 
       {/* Area breakdown */}
-      {areaStats.map(({ area, activeGoals, openTasks, habitCount, plannedMins }) => {
+      {areaStats.map(({ area, activeGoals, openTasks, habitCount, plannedMins, lastActivityDate }) => {
         const barPct =
           totalTargetHours > 0
             ? (area.targetWeeklyHours / totalTargetHours) * 100
@@ -119,6 +134,37 @@ export function BalanceDashboard({ areaStats }: BalanceDashboardProps) {
               <p className="text-[10px] text-slate-500 mt-2">
                 {Math.round(plannedMins / 60)}h estimated task effort
               </p>
+            )}
+
+            {/* Neglect warning */}
+            {area.isSeason && lastActivityDate && (() => {
+              const daysSince = Math.floor(
+                (Date.now() - new Date(lastActivityDate).getTime()) /
+                  (1000 * 60 * 60 * 24)
+              );
+              if (daysSince < 7) return null;
+              return (
+                <div className="mt-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <p className="text-xs text-amber-400">
+                    No activity in {daysSince} days. Intentionally on pause?
+                  </p>
+                  <button
+                    onClick={() => handleToggleSeason(area.id)}
+                    disabled={isPending}
+                    className="mt-1 text-[10px] text-amber-400/80 hover:text-amber-300 underline"
+                  >
+                    Mark as off-season
+                  </button>
+                </div>
+              );
+            })()}
+
+            {!area.isSeason && lastActivityDate === null && (
+              <div className="mt-3 p-2 rounded-lg bg-slate-800/50">
+                <p className="text-xs text-slate-500">
+                  This area is off-season — no pressure here.
+                </p>
+              </div>
             )}
           </Card>
         );

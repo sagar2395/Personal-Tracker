@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -23,10 +24,16 @@ interface InsightsViewProps {
   habitsWithLogs: HabitWithLogs[];
 }
 
-function getLast30Days(): string[] {
+const TIME_RANGES = [
+  { label: "1W", days: 7 },
+  { label: "1M", days: 30 },
+  { label: "3M", days: 90 },
+] as const;
+
+function getLastNDays(n: number): string[] {
   const days: string[] = [];
   const today = new Date();
-  for (let i = 29; i >= 0; i--) {
+  for (let i = n - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     days.push(d.toISOString().split("T")[0]);
@@ -53,21 +60,58 @@ function computeConsistency(
 }
 
 export function InsightsView({ habitsWithLogs }: InsightsViewProps) {
-  const last30 = getLast30Days();
+  const [rangeDays, setRangeDays] = useState(30);
+  const selectedDays = getLastNDays(rangeDays);
   const buildHabits = habitsWithLogs.filter((h) => h.habit.type === "build");
   const limitHabits = habitsWithLogs.filter((h) => h.habit.type === "limit");
 
+  const overallConsistency = (() => {
+    if (habitsWithLogs.length === 0) return 0;
+    let totalGood = 0;
+    let totalPossible = 0;
+    for (const { habit, logs } of habitsWithLogs) {
+      totalPossible += selectedDays.length;
+      totalGood += computeConsistency(logs, habit.type, selectedDays) * selectedDays.length / 100;
+    }
+    return totalPossible > 0 ? Math.round((totalGood / totalPossible) * 100) : 0;
+  })();
+
   return (
     <div className="space-y-6">
+      {/* Time range selector */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1 bg-slate-800/50 rounded-lg p-0.5">
+          {TIME_RANGES.map((range) => (
+            <button
+              key={range.label}
+              onClick={() => setRangeDays(range.days)}
+              className={cn(
+                "px-3 py-1 text-xs rounded-md transition-colors",
+                rangeDays === range.days
+                  ? "bg-indigo-500 text-white"
+                  : "text-slate-400 hover:text-slate-300"
+              )}
+            >
+              {range.label}
+            </button>
+          ))}
+        </div>
+        {habitsWithLogs.length > 0 && (
+          <span className="text-xs text-slate-500">
+            Overall: {overallConsistency}%
+          </span>
+        )}
+      </div>
+
       {/* Build habit consistency */}
       {buildHabits.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Build habits — 30-day consistency</CardTitle>
+            <CardTitle className="text-sm">Build habits — {rangeDays}-day consistency</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {buildHabits.map(({ habit, logs }) => {
-              const pct = computeConsistency(logs, "build", last30);
+              const pct = computeConsistency(logs, "build", selectedDays);
               return (
                 <div key={habit.id}>
                   <div className="flex items-center justify-between mb-1">
@@ -98,15 +142,15 @@ export function InsightsView({ habitsWithLogs }: InsightsViewProps) {
       {limitHabits.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Limit habits — 30-day view</CardTitle>
+            <CardTitle className="text-sm">Limit habits — {rangeDays}-day view</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {limitHabits.map(({ habit, logs }) => {
               const logMap = new Map(logs.map((l) => [l.date, l]));
-              const pct = computeConsistency(logs, "limit", last30);
+              const pct = computeConsistency(logs, "limit", selectedDays);
               const avgUsage = (() => {
                 const vals = logs
-                  .filter((l) => l.value !== null && last30.includes(l.date))
+                  .filter((l) => l.value !== null && selectedDays.includes(l.date))
                   .map((l) => l.value!);
                 return vals.length > 0
                   ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
@@ -124,7 +168,7 @@ export function InsightsView({ habitsWithLogs }: InsightsViewProps) {
 
                   {/* Mini bar chart */}
                   <div className="flex items-end gap-px h-12">
-                    {last30.map((day) => {
+                    {selectedDays.map((day) => {
                       const log = logMap.get(day);
                       const value = log?.value ?? 0;
                       const budget = habit.dailyBudgetMins ?? 30;
@@ -169,11 +213,11 @@ export function InsightsView({ habitsWithLogs }: InsightsViewProps) {
       {habitsWithLogs.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Activity heatmap — last 30 days</CardTitle>
+            <CardTitle className="text-sm">Activity heatmap — last {rangeDays} days</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-10 gap-1">
-              {last30.map((day) => {
+              {selectedDays.map((day) => {
                 let score = 0;
                 for (const { habit, logs } of habitsWithLogs) {
                   const log = logs.find((l) => l.date === day);

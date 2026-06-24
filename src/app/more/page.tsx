@@ -21,25 +21,25 @@ const menuItems = [
     phase: "",
   },
   {
-    href: "#",
+    href: "/review",
     label: "Reviews",
     description: "Daily check-in & weekly review",
     icon: ClipboardCheck,
-    phase: "Phase 3",
+    phase: "",
   },
   {
-    href: "#",
+    href: "/finance",
     label: "Finance",
     description: "Allocation & investment tracking",
     icon: Wallet,
-    phase: "Phase 4",
+    phase: "",
   },
   {
-    href: "#",
+    href: "/settings",
     label: "Settings",
     description: "Areas, notifications, data",
     icon: Settings,
-    phase: "Coming soon",
+    phase: "",
   },
 ];
 

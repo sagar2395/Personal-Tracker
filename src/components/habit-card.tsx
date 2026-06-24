@@ -73,6 +73,9 @@ export function HabitCard({ data }: HabitCardProps) {
     logStatus === "clean" ||
     logStatus === "under_budget";
 
+  const milestones = [7, 30, 100, 365];
+  const hitMilestone = milestones.find((m) => streak.currentStreak === m);
+
   return (
     <Card
       className={cn(
@@ -148,6 +151,17 @@ export function HabitCard({ data }: HabitCardProps) {
             {isBuild
               ? `Get back on — even the tiny version counts${habit.tinyVersion ? `: "${habit.tinyVersion}"` : ""}`
               : `Fresh start today. Remember your plan: ${habit.substitutionPlan || "stay under budget"}`}
+          </p>
+        </div>
+      )}
+
+      {hitMilestone && isLogged && (
+        <div className="mt-2 px-2 py-1.5 rounded-md bg-indigo-950/30 border border-indigo-800/30 text-center">
+          <p className="text-xs text-indigo-300">
+            {hitMilestone === 7 && "1 week streak! You're building a real habit."}
+            {hitMilestone === 30 && "30 days! This is who you are now."}
+            {hitMilestone === 100 && "100 days! Incredible dedication."}
+            {hitMilestone === 365 && "One full year! Legendary."}
           </p>
         </div>
       )}

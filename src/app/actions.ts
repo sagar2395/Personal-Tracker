@@ -63,7 +63,7 @@ export async function getHabitWithLogs(habitId: number) {
     habit.graceDaysAllowed,
     habit.cadence,
     cadenceDays,
-    logs.map((l) => ({ date: l.date, status: l.status as never }))
+    logs.map((l: typeof logs[number]) => ({ date: l.date, status: l.status as never }))
   );
 
   return { habit, logs, streak };
@@ -85,7 +85,7 @@ export async function getTodayHabits() {
     .orderBy(habits.type, habits.sortOrder)
     .all();
 
-  const todayHabits = allHabits.filter((h) => {
+  const todayHabits = allHabits.filter((h: typeof allHabits[number]) => {
     if (h.cadence === "daily") return true;
     if (h.cadence === "weekdays") return !["sat", "sun"].includes(dayOfWeek);
     if (h.cadence === "custom" && h.cadenceDays) {
@@ -119,7 +119,7 @@ export async function getTodayHabits() {
       habit.graceDaysAllowed,
       habit.cadence,
       cadenceDays,
-      recentLogs.map((l) => ({ date: l.date, status: l.status as never }))
+      recentLogs.map((l: typeof recentLogs[number]) => ({ date: l.date, status: l.status as never }))
     );
 
     const area = db
@@ -829,7 +829,7 @@ export async function getWeeklyReviewData() {
 
     if (habit.type === "build") {
       const goodDays = weekLogs.filter(
-        (l) => l.status === "done" || l.status === "partial"
+        (l: typeof weekLogs[number]) => l.status === "done" || l.status === "partial"
       ).length;
       habitSummaries.push({
         habit,
@@ -841,15 +841,15 @@ export async function getWeeklyReviewData() {
       });
     } else {
       const loggedDays = weekLogs.filter(
-        (l) => l.status === "clean" || l.status === "under_budget" || l.status === "over_budget" || l.status === "slip"
+        (l: typeof weekLogs[number]) => l.status === "clean" || l.status === "under_budget" || l.status === "over_budget" || l.status === "slip"
       );
       const avgUsage =
         loggedDays.length > 0
-          ? loggedDays.reduce((sum, l) => sum + (l.value ?? 0), 0) /
+          ? loggedDays.reduce((sum: number, l: typeof loggedDays[number]) => sum + (l.value ?? 0), 0) /
             loggedDays.length
           : 0;
       const cleanDays = weekLogs.filter(
-        (l) => l.status === "clean" || l.status === "under_budget"
+        (l: typeof weekLogs[number]) => l.status === "clean" || l.status === "under_budget"
       ).length;
       habitSummaries.push({
         habit,

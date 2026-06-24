@@ -29,14 +29,14 @@ export default async function Home() {
         : "Good evening";
 
   const deadlines = [
-    ...deadlinesData.tasks.map((t) => ({
+    ...deadlinesData.tasks.map((t: typeof deadlinesData.tasks[number]) => ({
       id: t.id,
       title: t.title,
       dueDate: t.dueDate,
       deadline: null as string | null,
       type: "task" as const,
     })),
-    ...deadlinesData.goals.map((g) => ({
+    ...deadlinesData.goals.map((g: typeof deadlinesData.goals[number]) => ({
       id: g.id,
       title: g.title,
       dueDate: null as string | null,

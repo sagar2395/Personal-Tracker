@@ -34,10 +34,10 @@ export default async function DailyCheckinPage() {
     .all();
 
   const completedHabitIds = todayLogs
-    .filter((l) => ["done", "partial", "clean", "under_budget"].includes(l.status))
-    .map((l) => l.habitId);
+    .filter((l: typeof todayLogs[number]) => ["done", "partial", "clean", "under_budget"].includes(l.status))
+    .map((l: typeof todayLogs[number]) => l.habitId);
 
-  const completedHabits = completedHabitIds.length > 0
+  const completedHabitsResult = completedHabitIds.length > 0
     ? db
         .select({ id: habits.id, title: habits.title })
         .from(habits)
@@ -47,8 +47,8 @@ export default async function DailyCheckinPage() {
           )
         )
         .all()
-        .filter((h) => completedHabitIds.includes(h.id))
     : [];
+  const completedHabits = completedHabitsResult.filter((h: typeof completedHabitsResult[number]) => completedHabitIds.includes(h.id));
 
   const completedTasks = db
     .select({ id: tasks.id, title: tasks.title })
@@ -63,12 +63,12 @@ export default async function DailyCheckinPage() {
     .all();
 
   const completedItems = [
-    ...completedHabits.map((h) => ({
+    ...completedHabits.map((h: typeof completedHabits[number]) => ({
       id: h.id,
       title: h.title,
       type: "habit" as const,
     })),
-    ...completedTasks.map((t) => ({
+    ...completedTasks.map((t: typeof completedTasks[number]) => ({
       id: t.id,
       title: t.title,
       type: "task" as const,

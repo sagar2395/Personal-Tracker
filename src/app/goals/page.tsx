@@ -18,7 +18,7 @@ export default async function GoalsPage() {
     getAreas(),
   ]);
 
-  const areaMap = new Map(areas.map((a) => [a.id, a]));
+  const areaMap = new Map(areas.map((a: typeof areas[number]) => [a.id, a]));
 
   return (
     <AppShell>
@@ -50,8 +50,8 @@ export default async function GoalsPage() {
               Active ({activeGoals.length})
             </h2>
             <div className="space-y-2">
-              {activeGoals.map((goal) => {
-                const area = areaMap.get(goal.areaId);
+              {activeGoals.map((goal: typeof activeGoals[number]) => {
+                const area = areaMap.get(goal.areaId) as typeof areas[number] | undefined;
                 return (
                   <Link key={goal.id} href={`/goals/${goal.id}`}>
                     <Card className="p-3 hover:border-slate-600 transition-colors">
@@ -92,8 +92,8 @@ export default async function GoalsPage() {
               Someday ({somedayGoals.length})
             </h2>
             <div className="space-y-2">
-              {somedayGoals.map((goal) => {
-                const area = areaMap.get(goal.areaId);
+              {somedayGoals.map((goal: typeof somedayGoals[number]) => {
+                const area = areaMap.get(goal.areaId) as typeof areas[number] | undefined;
                 return (
                   <Link key={goal.id} href={`/goals/${goal.id}`}>
                     <Card className="p-3 hover:border-slate-600 transition-colors opacity-60">
@@ -124,7 +124,7 @@ export default async function GoalsPage() {
               Completed ({doneGoals.length})
             </h2>
             <div className="space-y-2">
-              {doneGoals.slice(0, 5).map((goal) => (
+              {doneGoals.slice(0, 5).map((goal: typeof doneGoals[number]) => (
                 <Link key={goal.id} href={`/goals/${goal.id}`}>
                   <Card className="p-3 opacity-40">
                     <p className="text-sm line-through">{goal.title}</p>

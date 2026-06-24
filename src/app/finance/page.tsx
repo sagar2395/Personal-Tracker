@@ -13,7 +13,7 @@ export default async function FinancePage() {
   const snapshots = await getFinanceSnapshots();
 
   const snapshotsWithAllocations = await Promise.all(
-    snapshots.map(async (snapshot) => {
+    snapshots.map(async (snapshot: typeof snapshots[number]) => {
       const data = await getFinanceSnapshot(snapshot.id);
       return {
         snapshot,

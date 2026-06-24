@@ -14,7 +14,7 @@ export default async function InsightsPage() {
   const allHabits = await getHabits();
   const db = getDb();
 
-  const habitsWithLogs = allHabits.map((habit) => {
+  const habitsWithLogs = allHabits.map((habit: typeof allHabits[number]) => {
     const logs = db
       .select()
       .from(habitLogs)

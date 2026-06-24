@@ -11,10 +11,10 @@ export default async function HabitsPage() {
   if (!user) redirect("/login");
 
   const [habits, areas] = await Promise.all([getHabits(), getAreas()]);
-  const areaMap = new Map(areas.map((a) => [a.id, a]));
+  const areaMap = new Map(areas.map((a: typeof areas[number]) => [a.id, a]));
 
-  const buildHabits = habits.filter((h) => h.type === "build");
-  const limitHabits = habits.filter((h) => h.type === "limit");
+  const buildHabits = habits.filter((h: typeof habits[number]) => h.type === "build");
+  const limitHabits = habits.filter((h: typeof habits[number]) => h.type === "limit");
 
   return (
     <AppShell>
@@ -44,8 +44,8 @@ export default async function HabitsPage() {
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Build ({buildHabits.length})
             </h2>
-            {buildHabits.map((habit) => {
-              const area = areaMap.get(habit.areaId);
+            {buildHabits.map((habit: typeof buildHabits[number]) => {
+              const area = areaMap.get(habit.areaId) as typeof areas[number] | undefined;
               return (
                 <Link
                   key={habit.id}
@@ -74,8 +74,8 @@ export default async function HabitsPage() {
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Limit ({limitHabits.length})
             </h2>
-            {limitHabits.map((habit) => {
-              const area = areaMap.get(habit.areaId);
+            {limitHabits.map((habit: typeof limitHabits[number]) => {
+              const area = areaMap.get(habit.areaId) as typeof areas[number] | undefined;
               return (
                 <Link
                   key={habit.id}

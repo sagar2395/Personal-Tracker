@@ -1,27 +1,31 @@
 name = "personal-tracker"
 compatibility_date = "2025-06-01"
+main = ".open-next/worker.js"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
 
 [[d1_databases]]
-binding = "DB"
+binding = "personal_tracker_db"
 database_name = "personal-tracker-db"
-database_id = "YOUR_D1_DATABASE_ID"
-
-# OpenNext requires these bindings
-[[kv_namespaces]]
-binding = "NEXT_INC_CACHE_KV"
-id = "YOUR_KV_NAMESPACE_ID"
-
-[[r2_buckets]]
-binding = "NEXT_INC_CACHE_R2_BUCKET"
-bucket_name = "personal-tracker-cache"
+database_id = "e277a582-6ce3-4d73-aea7-8943f1999a53"
 
 [[d1_databases]]
-binding = "NEXT_TAG_CACHE_D1"
+binding = "personal_tracker_tag_cache"
 database_name = "personal-tracker-tag-cache"
-database_id = "YOUR_TAG_CACHE_D1_ID"
+database_id = "0b1da51e-7015-4fec-91b7-ba2ec362fc96"
+
+[[kv_namespaces]]
+binding = "NEXT_INC_CACHE_KV"
+id = "9032c9a9c5ca4f1ea3512d2461641edd"
+
+[[r2_buckets]]
+bucket_name = "personal-tracker-cache"
+binding = "personal_tracker_cache"
+
+[assets]
+directory = ".open-next/assets"
 
 # Cron triggers for scheduled reminders
 [triggers]

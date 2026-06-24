@@ -38,21 +38,44 @@ function parseSessionToken(token: string): number | null {
 }
 
 export async function login(email: string, password: string): Promise<boolean> {
-  const db = getDb();
-  const user = db.select().from(users).where(eq(users.email, email)).get();
-  if (!user) return false;
-  if (user.passwordHash !== hashPassword(password)) return false;
+  try {
+    const db = getDb();
+    const user = db.select().from(users).where(eq(users.email, email)).get();
+    console.log("[AUTH] Login attempt:", { email, found: !!user });
 
-  const token = createSessionToken(user.id);
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
-  return true;
+    if (!user) {
+      console.log("[AUTH] User not found:", email);
+      return false;
+    }
+
+    const passwordHash = hashPassword(password);
+    const isValid = user.passwordHash === passwordHash;
+    console.log("[AUTH] Password check:", {
+      provided: passwordHash.substring(0, 8) + "...",
+      stored: user.passwordHash.substring(0, 8) + "...",
+      valid: isValid
+    });
+
+    if (!isValid) {
+      console.log("[AUTH] Invalid password");
+      return false;
+    }
+
+    const token = createSessionToken(user.id);
+    const cookieStore = await cookies();
+    cookieStore.set(SESSION_COOKIE, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    console.log("[AUTH] Login successful");
+    return true;
+  } catch (e) {
+    console.error("[AUTH] Login error:", e);
+    return false;
+  }
 }
 
 export async function logout() {

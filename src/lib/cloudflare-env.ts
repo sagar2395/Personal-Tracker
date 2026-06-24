@@ -4,10 +4,13 @@ export function getCloudflarEnv() {
   try {
     const cfContext = (globalThis as any)[Symbol.for("__cloudflare-context__")];
     if (cfContext?.env) {
+      console.log("[CF_ENV] Found Cloudflare context, available bindings:", Object.keys(cfContext.env || {}));
       return cfContext.env;
+    } else {
+      console.log("[CF_ENV] Cloudflare context not found");
     }
   } catch (e) {
-    // Continue to other methods
+    console.error("[CF_ENV] Error accessing Cloudflare context:", e);
   }
 
   // Fallback: return empty object if not in Cloudflare environment
@@ -17,7 +20,9 @@ export function getCloudflarEnv() {
 export function getD1Database() {
   const env = getCloudflarEnv();
   if (env?.personal_tracker_db) {
+    console.log("[D1] D1 database binding found!");
     return env.personal_tracker_db;
   }
+  console.log("[D1] D1 database binding NOT found");
   return null;
 }

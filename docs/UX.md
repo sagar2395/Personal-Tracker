@@ -1,444 +1,306 @@
-# UX — Screens, Flows & Design Principles
+# UX Design Guide
 
-## Design principles
+## Design system
 
-### 1. Mobile-first, one-thumb operation
-Every primary action (log a habit, mark MIT done, capture a win) is reachable with the thumb in a single-hand grip. Critical tap targets are in the bottom 60% of the screen. No important action requires scrolling first.
+### Colors
 
-### 2. Seconds, not minutes
-The most frequent interactions — habit logging, win capture, MIT completion — take under 5 seconds. The Today screen is optimized for "open, tap, close" usage patterns during a busy day.
+The app uses a **dark theme** with calming, non-aggressive colors:
 
-### 3. Calm and encouraging
-No aggressive colors for negative states. The palette uses warm neutrals, soft greens for positive, warm amber for attention, and soft blue for "recovery" states. Never red. Never exclamation marks in warnings.
-
-### 4. Progressive disclosure
-Show only what matters now. Details are one tap away, not cluttering the primary view. The Today screen shows habit titles and a single action button — the full streak history is on the detail page.
-
-### 5. Installable PWA
-The app installs to the home screen with a custom icon, splash screen, and standalone display mode. It looks and feels like a native app.
-
-## Color palette
-
-| Use | Color | Hex |
+| Token | Color | Usage |
 |---|---|---|
-| Background | Off-white / very light gray | `#FAFAF9` |
-| Card background | White | `#FFFFFF` |
-| Primary text | Near-black | `#1C1917` |
-| Secondary text | Warm gray | `#78716C` |
-| Primary action | Teal | `#0D9488` |
-| Positive / done | Soft green | `#10B981` |
-| Attention / nudge | Warm amber | `#F59E0B` |
-| Recovery / neutral alert | Soft blue | `#60A5FA` |
-| Streak | Golden | `#D97706` |
-| Danger (destructive actions only) | Soft red | `#EF4444` |
+| `bg-primary` | Slate 950 (`#0f172a`) | Main background |
+| `bg-card` | Slate 900 (`#0f1729`) | Card surfaces |
+| `bg-input` | Slate 800 (`#1e293b`) | Input fields |
+| `text-primary` | Slate 100 (`#f1f5f9`) | Primary text |
+| `text-secondary` | Slate 400 (`#94a3b8`) | Secondary/muted text |
+| `accent` | Indigo 500 (`#6366f1`) | Primary actions, active states |
+| `success` | Emerald 500 (`#10b981`) | Completed, done, clean, under budget |
+| `warn` | Amber 400 (`#fbbf24`) | Grace day, partial, over budget (not punitive) |
+| `neutral-miss` | Slate 500 (`#64748b`) | Missed/skipped/slip (NOT red) |
+| `build-badge` | Emerald 600 | "Build" habit type badge |
+| `limit-badge` | Amber 500 | "Limit" habit type badge |
+| `area-*` | Per-area color | User-customizable per life area |
 
-Area colors (from seed data) provide additional visual coding throughout.
+**Critical rule:** Red (`#ef4444` or similar danger colors) is **never** used for habit misses, broken streaks, over-budget days, or failures. Red is reserved for destructive actions only (delete confirmation).
 
-## Typography
+### Typography
 
-- **Primary font:** System font stack (`-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`) for fast load and native feel
-- **Headings:** Semi-bold, 1.25–1.5rem
-- **Body:** Regular, 1rem (16px base)
-- **Small text:** 0.875rem for secondary info (streak counts, dates)
+- **Font**: Geist Sans (already configured)
+- **Headings**: `font-bold tracking-tight`
+- **Body**: Regular weight, comfortable line height
+- **Small/muted**: `text-sm text-slate-400`
+
+### Spacing & layout
+
+- **Mobile-first**: Design at 375px width first
+- **Max content width**: 640px (centered on desktop)
+- **Card padding**: 16px
+- **Section gap**: 24px
+- **Touch targets**: Minimum 44x44px for all tappable elements
+
+### Components
+
+Built on **shadcn/ui** (Tailwind-based, copy-paste components):
+- Button (primary, secondary, ghost, destructive)
+- Card
+- Input, Textarea
+- Select, Slider (for mood/energy and budget setting)
+- Dialog/Sheet (bottom sheet on mobile)
+- Badge (for area tags, streak counts, habit type: Build/Limit)
+
+---
+
+## Screen flows
+
+### Flow 1: Morning routine (Today view)
+
+```
+Open app
+  → See greeting + momentum score
+  → See 3 MITs for today
+  → See habits due today (build section, then limit section)
+  → Tap "Done" on "Morning workout" (build habit)
+    → Streak increments, celebratory pulse animation
+    → Momentum score updates
+  → See "Limit Instagram" card showing:
+    → Budget: 15 min | Streak: 5 days clean
+    → Substitution: "When you want to scroll → open Kindle"
+    → Tap "Clean today" → streak becomes 6, green checkmark
+  → Glance at deadlines
+  → Close app (~30 seconds total)
+```
+
+### Flow 2: Habit creation — build type
+
+```
+Habits → "+" button
+  → Step 1: "What kind of habit?"
+    → [Build something new] / [Limit something]
+    → Select "Build"
+  → Step 2: "What's the habit?"
+    → Title: "Morning workout"
+    → Area: Health
+  → Step 3: "What's the tiny version?"
+    → "The absolute minimum that still counts"
+    → Tiny version: "Do 1 pushup"
+  → Step 4: "When will you do it?"
+    → Anchor: "After I brush my teeth"
+    → Cadence: Daily
+    → Reminder: 7:00 AM
+  → Step 5: "Forgiveness settings"
+    → Grace days: 1 (default)
+  → Summary card → Confirm
+```
+
+### Flow 3: Habit creation — limit type (anti-habit)
+
+```
+Habits → "+" button
+  → Step 1: Select "Limit something"
+  → Step 2: "What do you want to limit?"
+    → Title: "Instagram scrolling"
+    → Area: Health
+  → Step 3: "Set your boundaries"
+    → Daily budget: 15 minutes
+      → Slider: 0 (quit entirely) to 120 min
+      → Or: "Quit entirely" toggle
+    → For sleep: "Staying up past midnight"
+      → Budget: 0 (quit entirely = be in bed by midnight)
+  → Step 4: "What's your substitution plan?"
+    → Template shown: "When I want to [scroll Instagram], I will [___] instead"
+    → User fills: "read Kindle"
+    → Full plan: "When I want to scroll Instagram, I will read Kindle instead"
+  → Step 5: "When is temptation strongest?"
+    → Peak time: 10:00 PM
+    → Info: "We'll send a heads-up 30 min before"
+  → Step 6: Grace days: 1
+  → Summary → Confirm
+```
+
+### Flow 4: Logging a limit habit
+
+```
+Today view → "Instagram scrolling" card
+  → Shows prominently:
+    → Budget: 15 min/day
+    → "Remember: When you want to scroll → open Kindle"
+    → Streak: 5 days under budget
+  → Options:
+    [Clean today] — zero scrolling → logs as "clean"
+    [Log time: ___ min] — tap to enter minutes
+  → User taps "Log time" → enters "10"
+  → Result: "Nice! 10 min today, within your 15 min budget. Streak: 6 days."
+  → OR enters "30"
+  → Result: "30 min today — over your 15 min budget. Tomorrow's a fresh start.
+     Remember: Kindle instead."
+```
+
+### Flow 5: Logging a quit habit (budget = 0)
+
+```
+Today view → "Late night scrolling" card (budget: 0 = quit)
+  → Shows: "Goal: zero scrolling after midnight"
+  → Substitution: "At 11 PM, start wind-down routine"
+  → Options:
+    [Clean today] — no scrolling
+    [Had a slip] — logs a slip event
+  → "Clean today" → "Clean day! Streak: 12 days."
+  → "Had a slip" → "Logged. Tomorrow's a fresh start.
+     Your longest clean streak is 15 days — you can get there again."
+```
+
+### Flow 6: Pre-temptation nudge (push notification)
+
+```
+9:30 PM (30 min before peak time of 10 PM):
+  Push notification:
+    Title: "Heads up"
+    Body: "Your scrolling danger zone starts soon.
+           Tonight's plan: read Kindle instead."
+  → Tap notification → opens Today view with the habit highlighted
+```
+
+### Flow 7: "Never miss twice" recovery
+
+```
+Day 1: User misses "Morning workout" (build habit)
+  → Grace day used. Streak preserved.
+  → Card shows amber dot: "Grace day — streak is safe."
+
+Day 2: User misses again (grace exhausted)
+  → Streak paused.
+  → Push notification (evening):
+    "Morning workout missed yesterday.
+     Tomorrow's a great reset point — even 1 pushup counts."
+  → Next morning, Today view shows habit with warm highlight badge:
+     "Get back on — your tiny version: 1 pushup"
+
+Day 3: User does 1 pushup (tiny version)
+  → Logged as "done" → new streak starts at 1
+  → Message: "Back on track. That's what matters."
+
+--- Same flow for limit habits: ---
+
+Day 1: User goes over budget on Instagram (limit habit)
+  → Grace day used. Streak preserved.
+  → Card: "Grace day — streak is safe. Tomorrow, remember: Kindle."
+
+Day 2: Over budget again
+  → Streak paused.
+  → Notification: "Instagram was over budget 2 days in a row.
+     Fresh start tomorrow. Plan: swap to Kindle at 10 PM."
+
+Day 3: User stays clean or under budget
+  → New streak starts at 1
+  → "Back on track. Your plan is working."
+```
+
+### Flow 8: Goal creation (WOOP)
+
+```
+Goals → "+" button → Select area
+  → Step 1 (Wish): "What do you want to achieve?"
+    → "Get marriage certificate"
+  → Step 2 (Outcome): "Imagine it's done. What's the best outcome?"
+    → "Legal documentation complete, peace of mind"
+  → Step 3 (Obstacle): "What's the main thing that could get in the way?"
+    → "Paperwork confusion, government office visits"
+  → Step 4 (Plan): "If [obstacle], then I will ___"
+    → "If paperwork is confusing, I will call the helpline first"
+  → Step 5: Measurable target + deadline
+    → Target: "Certificate in hand"
+    → Deadline: 2026-08-31
+  → Confirm → Goal created
+  → Prompt: "Add tasks to break this down?" → Yes
+    → Quick-add tasks: "Research required documents", "Book appointment", etc.
+  → Prompt: "Link any habits?" → Yes
+    → Can link both build AND limit habits
+```
+
+### Flow 9: Weekly review
+
+```
+Push notification (Sunday 10 AM): "Time for your weekly review"
+  → Open app → Review screen
+
+  Section 1: "Your wins this week"
+    → Auto-populated: 5 habits done, 3 tasks completed, "Started workout routine"
+    → Celebration: "You completed 82% of planned habits — strong week!"
+
+  Section 2: "Habit consistency"
+    → Build habits:
+      "Morning workout: 5 of 7 days"
+      "Meditation: 2 of 7 days — what got in the way?"
+    → Limit habits:
+      "Instagram: averaged 12 min/day (budget: 15) — under budget!"
+      "Late nights: 5 of 7 days clean"
+
+  Section 3: "Area balance"
+    → Chart: Health 8h (target 7h), Work-VL 42h, Snowops 0h
+    → "Snowops hasn't seen action. Set to off-season?" → [Yes] / [Keep active]
+
+  Section 4: "Next week's focus"
+    → Pick 1-2 focus areas
+    → Set MITs for Monday
+
+  → Submit → "Review complete. Have a great week."
+```
+
+---
 
 ## Navigation
 
 ### Bottom tab bar (mobile)
 
-5 tabs, always visible:
+5 tabs:
 
-```
-┌─────────────────────────────────────┐
-│  Today  │ Habits │ Goals │ Review │ ⋯ │
-│   🏠    │  ✓✓✓  │  🎯  │  📝   │ ≡  │
-└─────────────────────────────────────┘
-```
+| Icon | Label | Screen |
+|---|---|---|
+| Home | Today | Today/home view |
+| Target | Habits | Habit list + calendar |
+| Flag | Goals | Goals & tasks |
+| PieChart | Balance | Areas & balance dashboard |
+| Menu | More | Reviews, Insights, Finance, Settings |
 
-- **Today** — home screen (Module 1)
-- **Habits** — habit list/grid (Module 2)
-- **Goals** — goals & tasks (Module 4)
-- **Review** — daily check-in / weekly review (Module 5/6)
-- **More (⋯)** — Areas, Finance, Insights, Settings
+The "More" tab opens a menu with: Reviews, Insights, Finance, Settings.
 
-### Desktop/tablet
+### Desktop
 
-Side navigation with the same items, expanded labels, and the "More" items always visible.
+Side navigation with the same items, expanded.
 
-## Screen layouts
-
-### Today screen (mobile wireframe)
-
-```
-┌──────────────────────────────────┐
-│ Good morning, Sagar         ☀️   │
-│ Tuesday, June 24                 │
-│                                  │
-│        ┌──────────┐             │
-│        │   78%    │  ↑          │
-│        │ Momentum │             │
-│        └──────────┘             │
-│                                  │
-│ ─── Today's Focus ────────────  │
-│                                  │
-│ ☐ Review PR for Avyka    🟣 15m │
-│ ☐ Draft Snowops pitch    🩷 30m │
-│                                  │
-│ ─── Habits ───────────────────  │
-│                                  │
-│ 🏃 Morning workout    🔥 12    │
-│   tiny: 1 push-up              │
-│   [Done] [Tiny] [Skip]         │
-│                                  │
-│ ⚠ Meditation          🔥 0     │
-│   missed yesterday — get back!  │
-│   [Done] [Tiny] [Skip]         │
-│                                  │
-│ 💧 Drink 2L water     🔥 5     │
-│   [Done] [Tiny] [Skip]         │
-│                                  │
-│ ─── Quick Win ────────────────  │
-│ ┌────────────────────────────┐  │
-│ │ What went well today?      │  │
-│ └────────────────────────────┘  │
-│                                  │
-│ ─── Coming Up ────────────────  │
-│ 📋 Marriage cert docs    3 days │
-│ 🎂 Anniversary plan     12 days│
-│                                  │
-│ ┌────────────────────────────┐  │
-│ │  ✏️  Daily Check-in        │  │
-│ └────────────────────────────┘  │
-│                                  │
-│ Today │ Habits │ Goals │ Review │⋯│
-└──────────────────────────────────┘
-```
-
-Key interactions:
-- Habit [Done]/[Tiny]/[Skip] buttons are large tap targets (min 44px height)
-- MIT checkboxes have a satisfying check animation
-- Momentum ring is tappable → Insights
-- "Never miss twice" warning uses amber background, not red
-- Daily check-in button is prominent at the bottom of content
-
-### Habit creation flow
-
-```
-Step 1/4: The Habit
-┌──────────────────────────────────┐
-│ What habit do you want to build? │
-│ ┌────────────────────────────┐   │
-│ │ e.g., "30-minute workout"  │   │
-│ └────────────────────────────┘   │
-│                                  │
-│ Life area:  [Health ▼]           │
-│                                  │
-│                    [Next →]      │
-└──────────────────────────────────┘
-
-Step 2/4: Make It Tiny
-┌──────────────────────────────────┐
-│ What's the absolute minimum      │
-│ version of this habit?           │
-│                                  │
-│ Even on your worst day, you      │
-│ could do this in under 2 min.    │
-│                                  │
-│ ┌────────────────────────────┐   │
-│ │ e.g., "1 push-up"          │   │
-│ └────────────────────────────┘   │
-│                                  │
-│ This counts as "done" for your   │
-│ streak. No guilt, just showing   │
-│ up.                              │
-│                                  │
-│          [← Back] [Next →]       │
-└──────────────────────────────────┘
-
-Step 3/4: Anchor It
-┌──────────────────────────────────┐
-│ When will you do this?           │
-│                                  │
-│ After I ________________________ │
-│         e.g., "brush my teeth"   │
-│                                  │
-│ At: [07:00 ▼] (reminder time)   │
-│                                  │
-│ How often?                       │
-│ ○ Every day                      │
-│ ○ X times per week: [___]        │
-│ ○ Specific days: [M T W T F S S] │
-│                                  │
-│          [← Back] [Next →]       │
-└──────────────────────────────────┘
-
-Step 4/4: Safety Net
-┌──────────────────────────────────┐
-│ Life happens. How many grace     │
-│ days do you want?                │
-│                                  │
-│ Grace days let you miss without  │
-│ breaking your streak.            │
-│                                  │
-│       [  1  ]  (recommended)     │
-│                                  │
-│ Summary:                         │
-│ ✓ "30-minute workout"            │
-│ ✓ Tiny: "1 push-up"             │
-│ ✓ After: "brush my teeth" @7am   │
-│ ✓ Daily, 1 grace day            │
-│                                  │
-│          [← Back] [Create ✓]     │
-└──────────────────────────────────┘
-```
-
-### WOOP goal creation flow
-
-```
-Step 1/4: Wish
-┌──────────────────────────────────┐
-│ What's the goal?                 │
-│ ┌────────────────────────────┐   │
-│ │ e.g., "Reach 75 kg"        │   │
-│ └────────────────────────────┘   │
-│ Area: [Health ▼]                 │
-│ Deadline: [____________]         │
-│                    [Next →]      │
-└──────────────────────────────────┘
-
-Step 2/4: Outcome
-┌──────────────────────────────────┐
-│ When you achieve this, what does │
-│ it look like? How will it feel?  │
-│ ┌────────────────────────────┐   │
-│ │                            │   │
-│ │                            │   │
-│ └────────────────────────────┘   │
-│        [← Back] [Next →]        │
-└──────────────────────────────────┘
-
-Step 3/4: Obstacle
-┌──────────────────────────────────┐
-│ What's the biggest thing that    │
-│ could get in the way?            │
-│ ┌────────────────────────────┐   │
-│ │                            │   │
-│ └────────────────────────────┘   │
-│        [← Back] [Next →]        │
-└──────────────────────────────────┘
-
-Step 4/4: Plan
-┌──────────────────────────────────┐
-│ If that obstacle comes up,       │
-│ I will...                        │
-│ ┌────────────────────────────┐   │
-│ │                            │   │
-│ └────────────────────────────┘   │
-│                                  │
-│ Summary:                         │
-│ 🎯 Reach 75 kg                  │
-│ 📅 By: March 2027               │
-│ ⭐ "I'll feel confident & fit"  │
-│ ⚡ "Late night snacking"        │
-│ 🛡 "I'll prep healthy snacks"   │
-│                                  │
-│        [← Back] [Create ✓]      │
-└──────────────────────────────────┘
-```
-
-### Areas / Balance dashboard
-
-```
-┌──────────────────────────────────┐
-│ Life Balance          This Week  │
-│                                  │
-│ Available: 25h                   │
-│ Planned:   17h                   │
-│ ████████████████░░░░░░░░ 68%    │
-│                                  │
-│ ─── Areas ────────────────────  │
-│                                  │
-│ 💚 Health          7h target    │
-│ ████████░░░░░░░░   4.5h actual  │
-│ 3 habits (86% this week)         │
-│ 1/3 goals active                 │
-│                                  │
-│ 🩷 Snowops         5h target    │
-│ ██████░░░░░░░░░░   3h actual    │
-│ 0 habits, 2/3 goals active       │
-│                                  │
-│ 🟡 Personal        3h target    │
-│ ████████████████   4h actual    │
-│ 3/3 goals active ⚠ WIP limit    │
-│                                  │
-│ 💙 Finance         2h target    │
-│ ░░░░░░░░░░░░░░░░   0h actual   │
-│ ← "Ready when you are"          │
-│                                  │
-│ 💡 Side Hustle     Off-season   │
-│ 🌙 Hibernating — not counted    │
-│                                  │
-│ Today │ Habits │ Goals │ Review │⋯│
-└──────────────────────────────────┘
-```
-
-### Recovery checkpoint (habit missed twice)
-
-```
-┌──────────────────────────────────┐
-│                                  │
-│   It looks like "Morning workout"│
-│   has been tough this week.      │
-│                                  │
-│   That's okay — it happens to    │
-│   everyone. What would help?     │
-│                                  │
-│   ┌────────────────────────────┐ │
-│   │  💪  I'm back              │ │
-│   │  Recommit — fresh start    │ │
-│   └────────────────────────────┘ │
-│                                  │
-│   ┌────────────────────────────┐ │
-│   │  🔬  Make it smaller       │ │
-│   │  Edit to a tinier version  │ │
-│   └────────────────────────────┘ │
-│                                  │
-│   ┌────────────────────────────┐ │
-│   │  ⏸️  Pause for now         │ │
-│   │  Archive — reactivate later│ │
-│   └────────────────────────────┘ │
-│                                  │
-└──────────────────────────────────┘
-```
-
-### Daily check-in flow
-
-```
-┌──────────────────────────────────┐
-│ Daily Check-in     June 24       │
-│                                  │
-│ How's your mood?                 │
-│ 😫  😕  😐  🙂  😄              │
-│                                  │
-│ Energy level?                    │
-│ 🔋  🔋  🔋  🔋  🔋              │
-│ Low ←──────────────→ High        │
-│                                  │
-│ Today's wins:                    │
-│ ✓ Completed morning workout      │
-│ ✓ Finished Avyka code review     │
-│ + [Add another win]              │
-│                                  │
-│ Anything on your mind?           │
-│ ┌────────────────────────────┐   │
-│ │ (optional reflection)       │   │
-│ └────────────────────────────┘   │
-│                                  │
-│ Tomorrow's focus (pick 1–3):     │
-│ ☐ Draft Snowops proposal         │
-│ ☐ Schedule furniture delivery    │
-│ ☐ Research index funds           │
-│                                  │
-│             [Save Check-in ✓]    │
-└──────────────────────────────────┘
-```
-
-### Weekly review flow
-
-```
-Step 1/5: Celebrate Wins
-┌──────────────────────────────────┐
-│ 🎉 This week's wins              │
-│                                  │
-│ ✓ Completed 18/21 habit days     │
-│ ✓ Finished "Avyka sprint tasks"  │
-│ ✓ Called about marriage cert     │
-│ ✓ "Nailed the Snowops pitch"    │
-│                                  │
-│ + [Add a win I missed]           │
-│                                  │
-│ That's a solid week.             │
-│                                  │
-│                    [Next →]      │
-└──────────────────────────────────┘
-
-Step 2/5: Reset Points
-┌──────────────────────────────────┐
-│ These habits had a tough week.   │
-│ No judgment — let's adjust.      │
-│                                  │
-│ Meditation (2/7 days)            │
-│ [Recommit] [Make smaller] [Pause]│
-│                                  │
-│ Read 30 min (1/7 days)           │
-│ [Recommit] [Make smaller] [Pause]│
-│                                  │
-│          [← Back] [Next →]       │
-└──────────────────────────────────┘
-
-Step 3/5: Balance Check
-┌──────────────────────────────────┐
-│ How your time balanced out:      │
-│                                  │
-│ [Area balance chart - this week] │
-│                                  │
-│ Health was below target.         │
-│ Finance didn't get attention.    │
-│ Both are okay if intentional.    │
-│                                  │
-│          [← Back] [Next →]       │
-└──────────────────────────────────┘
-
-Step 4/5: Re-prioritize
-┌──────────────────────────────────┐
-│ Drag to reorder your focus:      │
-│                                  │
-│ ≡ Health          [In Season ✓]  │
-│ ≡ Snowops         [In Season ✓]  │
-│ ≡ Personal & Home [In Season ✓]  │
-│ ≡ Finance         [In Season ✓]  │
-│ ≡ Side Hustle     [Off Season]   │
-│                                  │
-│          [← Back] [Next →]       │
-└──────────────────────────────────┘
-
-Step 5/5: Next Week
-┌──────────────────────────────────┐
-│ Pick 1–3 focus themes for next   │
-│ week:                            │
-│                                  │
-│ ☐ Get back on health routine     │
-│ ☐ Close out marriage cert        │
-│ ☐ Snowops client outreach        │
-│ ☐ Monthly finance review         │
-│ + [Custom theme]                 │
-│                                  │
-│          [← Back] [Finish ✓]     │
-└──────────────────────────────────┘
-```
+---
 
 ## Animations & micro-interactions
 
-- **Habit done:** Checkmark appears with a quick scale-up + green pulse
-- **Streak milestone (7, 30, 100):** Brief confetti/sparkle effect
-- **MIT completed:** Satisfying strikethrough animation
-- **Momentum ring:** Smooth animation when score updates
-- **Recovery checkpoint:** Slides up gently from bottom (no jarring popup)
-- **Tab switching:** Quick crossfade, no page reload feeling
+- **Habit completion**: Quick pulse/scale animation on the card + streak increment.
+- **Streak milestone** (7, 30, 100): Subtle confetti or glow effect.
+- **Goal completion**: Larger celebration — checkmark animation with area color.
+- **Over-budget logging**: No negative animation. Just the neutral message and substitution plan reminder.
+- **Page transitions**: Subtle fade/slide.
+- **Pull to refresh**: Standard pull-down on mobile.
 
-## Responsive behavior
+All animations are subtle and fast (< 300ms). No full-screen takeovers. The user should never wait for an animation to finish before tapping the next thing.
 
-| Viewport | Layout |
-|---|---|
-| < 640px (phone) | Single column, bottom tab nav, stacked cards |
-| 640–1024px (tablet) | Two-column where useful (habits grid), bottom tab nav |
-| > 1024px (desktop) | Side nav, multi-column dashboard, wider cards |
+---
 
-## Accessibility
+## Offline behavior
 
-- All interactive elements have minimum 44×44px touch targets
-- Color is never the only indicator (always paired with icons or text)
-- Focus indicators for keyboard navigation
-- Semantic HTML (headings, lists, landmarks)
-- aria-labels on icon-only buttons
-- Respects `prefers-reduced-motion` for animations
-- Respects `prefers-color-scheme` (light default, dark mode as a future enhancement)
+- **Read**: Service worker caches the app shell + last-fetched data. Today view, habit list, and recent logs are available offline.
+- **Write**: Habit logs and task completions are queued in IndexedDB and synced when back online.
+- **Indicator**: A small "offline" badge in the header. No blocking modal.
+
+---
+
+## Notification UX
+
+| Notification | When | Copy style |
+|---|---|---|
+| Morning habit reminder | User's set time | "Time for [habit]. Even the tiny version counts." |
+| **Pre-temptation (limit)** | **30 min before peak** | **"Heads up — [peak time] is your [habit] danger zone. Tonight's plan: [substitution]."** |
+| Never miss twice (build) | Evening after first miss | "[Habit] missed today. Tomorrow's a reset point — [tiny version]." |
+| **Never miss twice (limit)** | **Evening after over-budget** | **"[Habit] was over budget today. Fresh start tomorrow. Plan: [substitution]."** |
+| Deadline approaching | 3 days, 1 day before | "[Task] is due in [X days]." |
+| Weekly review prompt | Sunday AM | "Time for your weekly review. See your wins and set next week's focus." |
+| Evening check-in | User's set time | "How was today? Take 2 minutes to reflect." |
+
+All notifications are actionable (tap to go to relevant screen). All can be individually disabled in settings.

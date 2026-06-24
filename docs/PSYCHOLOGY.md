@@ -1,111 +1,168 @@
-# Psychological Principles
+# Psychological Principles & UX Rules
 
-Every feature in this app is grounded in at least one evidence-based psychological principle. This document defines each principle, explains exactly how it maps to a feature, and specifies the UX rules that implement it.
+This document defines the behavioral science embedded in every feature. Implementors must follow these rules — they are not decorative; they are the product's competitive advantage.
 
-## Principles table
+## Principle-to-Feature Mapping
 
-| # | Principle | Source | Feature | UX rule |
-|---|---|---|---|---|
-| 1 | Tiny Habits / B=MAP | BJ Fogg | Habit creation | Every habit requires a "minimum version" (e.g., "1 push-up" instead of "30-minute workout") and an anchor ("After I brush my teeth"). Logging the tiny version counts as done. |
-| 2 | Don't break the chain + forgiveness | Seinfeld / Duolingo | Streak system | Streaks include configurable **grace days** (default: 1). A single miss uses a grace day without breaking the streak. This directly fixes the "one miss → months of drift" problem. |
-| 3 | Never miss twice (2-day rule) | James Clear | Recovery nudges | After 1 miss, the app sends a gentle "get back on" notification. The tracked metric is *missed-twice events*, not perfection rate. Missing twice triggers a "recovery checkpoint" — not punishment, but a prompt to recommit or adjust the habit. |
-| 4 | Implementation intentions | Gollwitzer | Habit/task details | Habits and scheduled tasks store "When [trigger], I will [action] at [place/time]." This is surfaced in the Today view next to each item. |
-| 5 | Self-Determination Theory | Deci & Ryan | System design | **Autonomy:** User defines areas, weights, seasons, and priorities — the system suggests, never dictates. **Competence:** Progress views, mastery tracking, momentum score. **Relatedness:** Accountability partner (wife, Phase 5). |
-| 6 | WOOP / mental contrasting | Oettingen | Goal creation | Goal creation follows a guided flow: **W**ish (what do you want?) → **O**utcome (how will it feel/look?) → **O**bstacle (what's the main blocker?) → **P**lan (if [obstacle], then I will [action]). All four fields stored. |
-| 7 | Goal-setting theory | Locke & Latham | Goal structure | Every goal requires a **specific measurable outcome** and a **deadline**. Goals are broken into concrete tasks and/or habits. Vague goals ("get healthier") are guided toward specifics ("reach 75 kg by March"). |
-| 8 | Progress principle / small wins | Amabile | Wins capture, momentum | Daily "what went well?" capture. Momentum score calculated from recent consistency. Milestone celebrations at meaningful thresholds (7-day streak, 30-day streak, goal completion). |
-| 9 | Eisenhower matrix | Eisenhower | Task prioritization | Every task has two boolean flags: **urgent** and **important**. The Today view auto-sorts: Important+Urgent first, then Important+Not-Urgent, then Urgent+Not-Important. Not-Important+Not-Urgent items are deprioritized or flagged for deletion. |
-| 10 | MIT / Ivy Lee method | Ivy Lee | Daily focus | Each day, the user picks **1–3 Most Important Tasks** from the full backlog. Only MITs appear prominently on the Today screen. The system limits MIT selection to 3 to enforce focus. |
-| 11 | WIP limits (Kanban) | Lean/Agile | Goal management | A configurable cap (default: 3) on simultaneously **active** goals per life area. Attempting to activate a 4th goal shows: "You have 3 active goals here. Finish or pause one before adding another." |
-| 12 | Energy/capacity management | Time-blocking research | Weekly time budget | Each life area has a **target weekly hours** allocation. The system totals these against the user's declared **available weekly hours** (realistic free time after work/sleep). If total planned > available, it warns: "You're planning X hours of work into Y available hours. Something needs to give." |
-| 13 | Seasons / focus themes | Cyclical planning | Area priorities | The user can mark areas as "in season" (active focus) or "off season" (maintenance mode). Off-season areas don't generate urgent notifications or appear in neglect warnings. This prevents guilt about temporarily deprioritized areas. |
-| 14 | Weekly review ritual | GTD (David Allen) | Weekly review | A guided weekly flow: (1) Celebrate wins, (2) Review misses *reframed* as learning, (3) Review area balance, (4) Re-prioritize and set next week's focus. Triggered by a Sunday notification. |
-| 15 | Self-compassion / reframing | Kristin Neff | Tone & copy | Misses are never shown as failures. Vocabulary: "reset point" not "broken streak," "recovery day" not "missed day," "adjustment" not "failure." No red/aggressive UI elements for negative states. Warm neutral palette (amber, soft blue) for alerts. |
-| 16 | Loss aversion (gentle commitment) | Kahneman & Tversky | Optional commitments | Users can optionally set a "commitment" on a goal — a stated consequence of not following through. Framed positively: "If I complete this by [date], I'll [reward]." Not punitive. |
+### 1. Tiny Habits / B=MAP (BJ Fogg)
 
-## Detailed UX rules derived from principles
+**Principle:** Behavior = Motivation + Ability + Prompt. Make the desired behavior tiny enough that motivation barely matters.
 
-### Grace day logic (Principles 2 + 3)
+**Feature:** Every `build` habit requires a **minimum/tiny version** field. Example: "Do 1 pushup" instead of "Work out for 45 minutes." Logging the tiny version still counts as `done` — the streak is preserved.
 
-```
-For a habit with graceDaysAllowed = N:
-  - Track consecutive days of completion
-  - When a day is missed:
-    - If grace days remaining > 0: decrement grace days, streak continues
-    - If grace days remaining = 0: streak resets to 0, grace days refill to N
-  - Grace days refill to N after any completed day
-  - "Missed twice" = two consecutive days with status != 'done' AND grace = 0
-  - When "missed twice" triggers: show recovery checkpoint, not failure
-```
+**UX rule:** The tiny version is always shown alongside the full habit, with copy like: *"Not feeling it? Just do the tiny version."*
 
-### Recovery checkpoint flow (Principle 3)
+### 2. Implementation Intentions (Gollwitzer)
 
-When a user has missed a habit twice consecutively (after grace days exhausted):
+**Principle:** "When [situation], I will [behavior]" plans double follow-through rates vs. motivation alone.
 
-1. Show a non-judgmental card: "It looks like [habit] has been tough this week. That's okay — it happens to everyone."
-2. Offer three options:
-   - **"I'm back"** — recommit, streak resets, fresh start
-   - **"Make it smaller"** — edit the habit to a tinier version
-   - **"Pause for now"** — archive the habit without deleting it; can reactivate anytime
-3. Never auto-archive or delete. The user is always in control.
+**Feature:** Every habit stores an **anchor** field: "After I [existing routine], I will [this habit] at [time/place]."
 
-### Tone guidelines (Principle 15)
+**UX rule:** During habit creation, the anchor is a required prompt — not optional metadata. Show it on the Today view next to the habit.
 
-| Instead of... | Use... |
+### 3. Don't Break the Chain + Forgiveness (Seinfeld / Duolingo)
+
+**Principle:** Streaks are powerful motivators, but rigid streaks cause catastrophic abandonment after a single miss ("what-the-hell effect").
+
+**Feature:** Streaks with **grace days**. Each habit has `graceDaysAllowed` (default: 1). Missing one day within the grace window does not break the streak. The streak display shows grace status clearly.
+
+**UX rule:**
+- Streak number is shown with a calm indicator (e.g., a warm amber dot) when within grace, not a scary red.
+- Copy: *"Grace day used — your streak is safe. Get back tomorrow."*
+- Never: *"You broke your streak!"*
+
+### 4. Never Miss Twice / 2-Day Rule (James Clear)
+
+**Principle:** Missing once is an accident; missing twice is the start of a new (bad) habit. The critical intervention point is *after the first miss*.
+
+**Feature:** After 1 missed day (post-grace), the app:
+1. Sends a gentle push notification: *"Hey, [habit] missed yesterday. Today's a great reset point — even the tiny version counts."*
+2. Highlights the habit on the Today view with a "get back on" badge (warm, not punitive).
+3. The tracked danger metric is `missedTwiceCount` — if the user misses twice consecutively, it increments. The goal is to keep this number low, not to maintain a perfect streak.
+
+**UX rule:** The "never miss twice" nudge is the single most important notification in the system. It fires once, not repeatedly. No nagging.
+
+### 5. Anti-Habits: Stimulus Control & If-Then Substitution
+
+**Principle:** Removing or replacing the cue/response loop is more effective than willpower-based suppression. Trying to "just stop" a bad habit by willpower alone fails because the cue-craving-response loop remains intact. The evidence-based approach is to **substitute** the response with a healthier alternative.
+
+**Feature:** `limit` type habits track behaviors to reduce or quit (e.g., Instagram doom scrolling, staying up past midnight, stress eating). Each stores:
+- `dailyBudgetMins`: time/count budget (0 = quit entirely)
+- `substitutionPlan`: "When I want to [scroll Instagram], I will [open Kindle] instead"
+- `peakTemptationTime`: when to send a pre-commitment nudge
+
+**UX rules:**
+- Logging a `limit` habit is about recording time spent or slip-ups, not completions.
+- Streak = consecutive days clean / under budget.
+- The substitution plan is shown **prominently** when logging: *"Remember your plan: when you want to scroll, open Kindle instead."*
+- Pre-temptation nudge fires *before* the peak time: *"Heads up — your scrolling danger zone starts soon. Tonight's plan: [substitution]."*
+- Slips are logged neutrally: *"Logged. Tomorrow's a fresh start."*
+- Never shame language. "30 min today" is data, not a verdict.
+
+**Examples of limit habits:**
+- Instagram doom scrolling → budget 15 min/day, substitute with reading
+- Staying up past midnight → budget 0 (quit), substitute: "At 11 PM, I will start my wind-down routine"
+- Stress eating junk food → budget 1 item/day, substitute: "When I crave chips, I'll eat an apple first"
+
+### 6. Pre-Commitment & Friction (Thaler)
+
+**Principle:** Committing in advance reduces decision fatigue at temptation time. People make better choices when they decide before the moment of temptation.
+
+**Feature:** Anti-habit reminders fire *before* the typical temptation window (e.g., 30 min before bedtime for scrolling habits, before lunch for stress eating). The reminder includes the substitution plan so the user enters the danger zone with a plan already loaded.
+
+**UX rule:** The pre-temptation nudge is proactive, not reactive. It says *"Heads up"* not *"Don't do it."*
+
+### 7. WOOP / Mental Contrasting (Oettingen)
+
+**Principle:** Goals with only positive fantasies fail. Mentally contrasting the wish with realistic obstacles increases follow-through.
+
+**Feature:** Goal creation uses a WOOP flow:
+- **W**ish: What do you want?
+- **O**utcome: What's the best outcome?
+- **O**bstacle: What's the main inner obstacle?
+- **P**lan: If [obstacle], then I will [action].
+
+**UX rule:** The WOOP fields are guided, not a blank form. Show examples relevant to each life area.
+
+### 8. Self-Determination Theory (Deci & Ryan)
+
+**Principle:** Intrinsic motivation requires autonomy, competence, and relatedness.
+
+**Feature mapping:**
+- **Autonomy**: User defines their own areas, weights, and what counts as "done."
+- **Competence**: Progress views, mastery indicators, momentum score.
+- **Relatedness**: Household mode (wife as accountability partner, later).
+
+### 9. Eisenhower Matrix + MITs (Ivy Lee Method)
+
+**Principle:** Urgent ≠ important. Doing 1-3 vital tasks beats touching 20 shallow ones.
+
+**Feature:** Tasks carry `urgent` + `important` flags. The Today view auto-surfaces **max 3 Most Important Tasks (MITs)** from the Important+Urgent and Important+Not-Urgent quadrants.
+
+**UX rule:** The app never shows a flat list of 50 tasks. The default view is today's MITs. The full backlog is one tap away but not the default.
+
+### 10. WIP Limits (Kanban / Lean)
+
+**Principle:** Work-in-progress limits prevent context-switching and half-finished goals.
+
+**Feature:** Each life area has a cap on simultaneously `active` goals (default: 3). Trying to activate a 4th shows: *"You already have 3 active goals in [area]. Finish or pause one first."*
+
+### 11. Energy / Capacity Management
+
+**Principle:** Time is finite. A 2-job schedule is already near capacity — the system must prevent over-commitment, not enable it.
+
+**Feature:** Weekly **time budget per area** (target hours). When planned tasks + habits exceed realistic free hours, the app warns: *"Your planned load this week is ~52 hours but you have ~20 hours of free time. Consider deferring [lowest-priority items]."*
+
+### 12. Seasons / Focus Themes
+
+**Principle:** Not everything needs attention every month. Explicitly deprioritizing an area removes guilt.
+
+**Feature:** Areas can be set to "off-season" (e.g., Side Hustle might be off-season while furnishing the flat). Off-season areas don't generate tasks on Today or count toward balance warnings.
+
+### 13. Progress Principle / Small Wins (Amabile)
+
+**Principle:** The single biggest motivator at work is making progress on meaningful work, even small progress.
+
+**Feature:**
+- **Daily wins capture**: "What went well today?" — quick free-text logged at check-in.
+- **Momentum score**: A composite metric shown on Today (habit consistency + tasks completed this week).
+- **Milestone celebrations**: When a goal completes or a streak hits a milestone (7, 30, 100 days), a celebratory moment appears.
+
+**UX rule:** Wins are framed as the *user's* achievement, not the app's. Copy: *"You've been consistent for 14 days — that's rare and real."*
+
+### 14. Weekly Review Ritual (GTD)
+
+**Principle:** Regular reflection prevents drift and enables course-correction.
+
+**Feature:** Guided weekly review:
+1. Wins recap (auto-populated from the week's wins + completed tasks).
+2. Misses reframed: *"These habits had a tough week — what got in the way?"* (not "you failed at these").
+3. Re-prioritize: adjust MITs, toggle area seasons, update goals.
+4. Set next week's focus areas.
+
+**UX rule:** The review is prompted via push notification (Sunday morning by default). It takes 5-10 minutes. It is the most important ritual in the system.
+
+### 15. Self-Compassion / Reframing (Kristin Neff)
+
+**Principle:** Self-criticism after failure reduces motivation. Self-compassion maintains it.
+
+**UX rules (global — apply everywhere):**
+- Never use "failed", "broke", or "lost" in UI copy.
+- Use: "reset point", "fresh start", "off day", "tough week."
+- Red is never used for habit misses. Use neutral gray or warm amber.
+- Missed streaks: *"Streak paused at 12 days. Your longest is 23 — you know how to build it back."*
+- Always anchor to the user's best, not their worst.
+
+## Tone of voice guide
+
+| Do | Don't |
 |---|---|
-| "You failed" | "Reset point" |
-| "Streak broken" | "Fresh start" |
-| "0 days" | "Day 1" |
-| "You missed 3 habits" | "3 habits are waiting for you" |
-| "Overdue" | "Ready when you are" |
-| Red/orange warning colors | Warm amber, soft blue |
-| Exclamation marks in warnings | Calm periods |
-
-### Momentum score (Principle 8)
-
-A single number (0–100) representing recent consistency across all active habits:
-
-```
-momentum = (completed_habit_days_last_14 / expected_habit_days_last_14) * 100
-```
-
-- Displayed as a ring/arc on the Today screen
-- 80–100: "Strong momentum" (green)
-- 50–79: "Building" (amber)
-- Below 50: "Recovery mode — every day counts" (soft blue, never red)
-- Trend arrow shows direction (improving/declining) vs. previous 14-day window
-
-### Capacity warning (Principle 12)
-
-On the Areas/Balance dashboard:
-
-```
-available_hours = user.declaredWeeklyFreeHours  // e.g., 25 hrs after work+sleep
-planned_hours = SUM(area.targetWeeklyHours for all active areas)
-if planned_hours > available_hours * 1.1:
-  show: "You're planning {planned}h into {available}h of free time.
-         Consider putting an area into off-season or reducing targets."
-```
-
-### WOOP goal creation flow (Principle 6)
-
-Four-step guided form:
-
-1. **Wish:** "What's the goal?" → free text title
-2. **Outcome:** "When you achieve this, what does it look like? How will it feel?" → free text
-3. **Obstacle:** "What's the biggest thing that could get in the way?" → free text
-4. **Plan:** "If [obstacle] happens, I will..." → free text (implementation intention)
-
-All four fields are stored and visible on the goal detail page. Users can skip Outcome/Obstacle/Plan but are gently encouraged to fill them.
-
-### Weekly review flow (Principle 14)
-
-Guided 5-step ritual, takes ~10 minutes:
-
-1. **Wins** — auto-populated from completed tasks/habits/captured wins this week. User can add more. "You completed X habits, finished Y tasks, and captured Z wins this week."
-2. **Misses** — reframed. "These habits had a tough week. Want to adjust, make them smaller, or recommit?" No blame language.
-3. **Area balance** — visual of time spent per area vs. targets. "Any areas you want to shift focus to next week?"
-4. **Re-prioritize** — drag to reorder goals/areas for next week. Set/change season status.
-5. **Next week's focus** — pick 1–3 focus themes for the coming week.
-
-Triggered by a push notification on Sunday evening (configurable day/time).
+| "Great reset point" | "You failed" |
+| "Even the tiny version counts" | "You didn't do enough" |
+| "Tomorrow's a fresh start" | "Don't let this happen again" |
+| "You've been consistent for 14 days" | "Only 14 days" |
+| "Your streak is safe (grace day)" | "Warning: streak at risk!" |
+| "What got in the way?" | "Why did you miss this?" |
+| "Logged. Tomorrow's a fresh start." | "You slipped up again." |
+| "Danger zone ahead — remember your plan" | "You better not scroll tonight" |
+| Warm amber / soft gray for misses | Red / danger colors for misses |

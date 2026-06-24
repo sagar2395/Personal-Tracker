@@ -1,0 +1,32 @@
+name = "personal-tracker"
+compatibility_date = "2025-06-01"
+
+[vars]
+ENVIRONMENT = "production"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "personal-tracker-db"
+database_id = "YOUR_D1_DATABASE_ID"
+
+# OpenNext requires these bindings
+[[kv_namespaces]]
+binding = "NEXT_INC_CACHE_KV"
+id = "YOUR_KV_NAMESPACE_ID"
+
+[[r2_buckets]]
+binding = "NEXT_INC_CACHE_R2_BUCKET"
+bucket_name = "personal-tracker-cache"
+
+[[d1_databases]]
+binding = "NEXT_TAG_CACHE_D1"
+database_name = "personal-tracker-tag-cache"
+database_id = "YOUR_TAG_CACHE_D1_ID"
+
+# Cron triggers for scheduled reminders
+[triggers]
+crons = [
+  "0 6 * * *",   # Daily morning habit reminders (6 AM UTC — adjust to your timezone)
+  "0 21 * * *",  # Evening check-in / "never miss twice" nudge (9 PM UTC)
+  "0 10 * * 0",  # Weekly review prompt (Sunday 10 AM UTC)
+]

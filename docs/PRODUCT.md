@@ -1,12 +1,26 @@
 # Product Vision
 
-## The person this is for
+## What is Personal Tracker?
 
-A platform engineer working two jobs (Valuelabs full-time, Avyka contractual) who wants to optimize every dimension of life: health, personal admin, finances, building a company (Snowops), and optional side projects. His wife shares health and home goals but isn't a primary user yet.
+Personal Tracker is a **calm, opinionated life operating system** built for one person (and eventually their household) to manage every area of life — work, health, personal admin, finance, and side ventures — from a single mobile-first app.
 
-He's tried existing tools and none fit. They either do one thing (habit trackers), do everything shallowly (Notion), or become another source of guilt when things slip.
+It is **not** a generic to-do app. Its identity is built on three pillars:
 
-## The three problems
+1. **You can do anything but not everything (at once).** The tool enforces focus and realistic capacity rather than growing infinite lists.
+2. **Recovery beats perfection.** Missing a day is normal. The system is designed to get you back on track, never to shame you.
+3. **Small visible wins compound.** Progress is made visible and celebrated to counter the frustration of big dreams vs. slow movement.
+
+## Who is this for?
+
+The primary user ("Sagar") is a platform engineer working two jobs — one full-time at Valuelabs, one contractual at Avyka. He juggles:
+
+- **Health**: Building routines for himself and his wife. The habit always breaks after a while and they drift for months. This is the #1 pain point. He also struggles with **bad habits** like Instagram doom scrolling and poor sleep patterns that undermine health goals.
+- **Personal & Home**: Marriage certificate, furniture for a new flat, interior design decisions, anniversary planning.
+- **Finance**: Placing salary intelligently across asset classes (equity, debt, gold, etc.).
+- **Snowops**: A company he is co-building that will provide compliance and DevOps services.
+- **Side Hustle**: Optional, only if capacity allows.
+
+## The core problems
 
 ### 1. Health habits collapse after a single miss
 
@@ -14,42 +28,54 @@ He and his wife start healthy routines — exercise, diet, sleep schedules. They
 
 **This is the #1 pain point and the reason this tool exists.**
 
-### 2. Too many ambitions, not enough hours
+### 2. Bad habits fill the void
 
-Two jobs already consume most waking hours. Add health, personal admin (marriage certificate, flat furnishing, interior design, anniversary planning), finance management, building Snowops, and optional side hustles — and there's a permanent feeling of "I should be doing more." No tool helps him see that he's *already at capacity* and that neglecting some areas temporarily is okay.
+When good habits break, bad habits rush in — Instagram doom scrolling, staying up late, skipping meals. These aren't tracked or confronted. The tool must handle **both sides**: building good habits AND limiting/quitting bad ones.
 
-### 3. Frustration from slow progress on big dreams
+### 3. Too many ambitions, not enough hours
 
-He dreams big — building a company, financial independence, peak health. Progress is necessarily slow when time is scarce. Without visible evidence of small wins compounding, the gap between aspiration and reality becomes demotivating.
+Two jobs already consume most waking hours. Add health, personal admin, finance management, building Snowops, and optional side hustles — and there's a permanent feeling of "I should be doing more." No tool helps him see that he's *already at capacity* and that neglecting some areas temporarily is okay.
 
-## The three pillars
+### 4. Big dreams vs. slow progress → frustration
 
-Every design decision traces back to one of these:
+He dreams big across many areas. Progress in any single area is necessarily slow (limited hours). Without reframing, this creates chronic frustration. The tool must make small progress feel meaningful.
 
-### Pillar 1: You can do anything, but not everything (at once)
+## Design principles
 
-The tool enforces focus. It shows weekly time budgets per life area and warns when planned commitments exceed realistic free hours. It supports "seasons" — declaring that certain areas are intentionally deprioritized this month — so neglect-by-design doesn't generate guilt. WIP limits cap the number of simultaneously active goals. The Eisenhower matrix and MITs surface what truly matters today.
+- **Mobile-first, one-thumb operation.** Logging a habit must take < 3 seconds.
+- **Calm, encouraging tone.** No aggressive red "failure" states. Misses are neutral ("reset point"), never punishing.
+- **Two-sided habit tracking.** Build good habits AND limit bad ones. Both are first-class citizens with their own psychology (tiny versions for build, substitution plans for limit).
+- **Opinionated defaults, flexible overrides.** The app ships with sensible structure but the user can customize areas, weights, and cadences.
+- **Offline-friendly reads.** PWA service worker caches the shell and recent data for subway/flight use.
+- **Data ownership.** Self-hosted on Cloudflare — no third-party SaaS dependency, full export available.
 
-### Pillar 2: Recovery beats perfection
+## Life areas (seeded defaults)
 
-Missing once is human. The system is designed around *getting back on track*, not maintaining an unbroken record. Streaks include grace days. The "never miss twice" principle is the core tracked metric — not "days without a miss." After one skip, the app sends a gentle nudge. After two, it flags a recovery opportunity. It never shows punishing red "failure" states. The tone is always: "You're here. That's what matters."
+| Area | Type | Shared with wife? |
+|---|---|---|
+| Work — Valuelabs | Professional | No |
+| Work — Avyka | Professional | No |
+| Health | Personal / Household | Yes (later) |
+| Personal & Home | Personal / Household | Yes (later) |
+| Finance | Personal | No |
+| Snowops | Venture | No |
+| Side Hustle | Optional | No |
 
-### Pillar 3: Small visible wins compound
-
-Every day, the user captures a small win. The momentum score reflects consistency over time, not perfection. Milestone moments are celebrated. Weekly reviews start with "what went well" before addressing what needs adjustment. Insights charts show upward trends with smoothed lines, not jagged daily fluctuations that obscure real progress.
+Each area has a **priority weight** and a **target weekly hours** budget. The balance dashboard shows how actual time maps to the plan and highlights neglected areas (without guilt-tripping if they're deliberately set to "off-season").
 
 ## What this is NOT
 
-- **Not a full budgeting app.** Finance is a lightweight allocation and checklist module, not Mint/YNAB.
-- **Not a project management tool.** No Gantt charts, no team collaboration, no sprints.
+- **Not a generic to-do list.** Every feature is justified by a psychological principle.
 - **Not a social platform.** Multi-user is limited to household (wife) for shared accountability.
-- **Not a data dump.** Every screen is opinionated about what to show and when. The tool decides priorities; the user overrides when needed.
+- **Not a full budgeting app.** Finance is a lightweight allocation planner, not Mint or YNAB.
+- **Not a willpower app.** It uses behavioral science (substitution plans, implementation intentions, pre-commitment) to reduce reliance on willpower.
 
-## Success criteria
+## Success metrics
 
 The tool succeeds if:
 
-1. After a habit breaks, the user **resumes within 2 days** instead of drifting for months
-2. The user can answer **"what should I focus on today?"** in under 10 seconds from the home screen
-3. The user feels **encouraged** after a weekly review, not guilty
-4. The user's wife can join later without the system needing a rewrite
+1. After a missed health habit day, the user gets back on track within 1 day (not months).
+2. Bad habits (scrolling, late nights) show measurable reduction over weeks via the limit-habit tracking.
+3. The user knows their top 1-3 priorities each morning in < 10 seconds of app interaction.
+4. No area of life is invisibly neglected — the balance dashboard makes every area's status explicit.
+5. The user feels *less* overwhelmed after checking the app, not more.

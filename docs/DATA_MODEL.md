@@ -1,376 +1,310 @@
 # Data Model
 
-All entities use Drizzle ORM with Cloudflare D1 (SQLite). Every table includes a `userId` column for future multi-user support. IDs use `text` type with CUID2 or nanoid generation.
+All entities include `userId` for multi-user readiness. Relations are enforced via foreign keys. Timestamps are ISO 8601 strings (SQLite text). IDs are auto-increment integers (D1 integer primary key).
 
-## Entity relationship diagram
+## Entity-Relationship Diagram
 
 ```
-User 1──* LifeArea
-User 1──* Goal
-User 1──* Task
-User 1──* Habit
+User 1──* LifeArea 1──* Goal 1──* Task
+                    │         └──* Habit (optional link)
+                    └──* Habit 1──* HabitLog
+                    └──* Metric 1──* MetricLog
+
 User 1──* Review
 User 1──* Win
+User 1──* FinanceSnapshot 1──* FinanceAllocation
 User 1──* PushSubscription
-
-LifeArea 1──* Goal
-LifeArea 1──* Habit
-LifeArea 1──* Task
-LifeArea 1──* Metric
-
-Goal 1──* Task
-Goal 1──* Habit (optional link)
-
-Habit 1──* HabitLog
-
-Metric 1──* MetricLog
-
-FinanceAllocation *──1 FinancePlan
 ```
 
-## Full schema
+## Entities
 
-### users
+### User
 
-Single-user Phase 1, multi-user ready.
+Scaffolded now (single-user), activated when wife joins.
 
-```ts
-export const users = sqliteTable('users', {
-  id: text('id').primaryKey(),
-  email: text('email').notNull().unique(),
-  name: text('name').notNull(),
-  passwordHash: text('password_hash').notNull(),
-  weeklyFreeHours: integer('weekly_free_hours').default(25),
-  timezone: text('timezone').default('Asia/Kolkata'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
-```
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | Auto-increment |
+| email | text | Unique, required |
+| passwordHash | text | bcrypt/scrypt |
+| name | text | Display name |
+| timezone | text | e.g. "Asia/Kolkata" |
+| createdAt | text | ISO 8601 |
 
-### sessions
+### LifeArea
 
-Auth sessions for cookie-based login.
+Top-level life buckets. Seeded with defaults on first run.
 
-```ts
-export const sessions = sqliteTable('sessions', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
-});
-```
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| userId | integer FK → User | |
+| name | text | e.g. "Work — Valuelabs" |
+| icon | text | Lucide icon name |
+| color | text | Hex color |
+| priorityWeight | integer | 1-10, higher = more important |
+| targetWeeklyHours | real | Hours/week budgeted |
+| isSeason | integer | 1 = active this season, 0 = off-season |
+| sortOrder | integer | Display order |
+| createdAt | text | |
 
-### life_areas
+### Goal
 
-Top-level organizational buckets. Seeded with 7 areas for this user.
+A desired outcome within an area. Uses WOOP creation flow.
 
-```ts
-export const lifeAreas = sqliteTable('life_areas', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  icon: text('icon'),                              // emoji or icon name
-  color: text('color'),                            // hex color for UI
-  priorityWeight: integer('priority_weight').default(1),  // relative importance
-  targetWeeklyHours: real('target_weekly_hours').default(0),
-  isInSeason: integer('is_in_season', { mode: 'boolean' }).default(true),
-  sortOrder: integer('sort_order').default(0),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
-```
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| userId | integer FK → User | |
+| areaId | integer FK → LifeArea | |
+| title | text | |
+| wish | text | WOOP: What do you want? |
+| outcome | text | WOOP: Best outcome if achieved |
+| obstacle | text | WOOP: Main inner obstacle |
+| plan | text | WOOP: If [obstacle], then [action] |
+| measurableTarget | text | e.g. "Lose 5 kg", "Get certificate by Aug" |
+| deadline | text | ISO date |
+| status | text | `active` / `someday` / `done` / `dropped` |
+| wipActive | integer | 1 = counts toward WIP limit |
+| sortOrder | integer | |
+| createdAt | text | |
+| completedAt | text | Nullable |
 
-Seed data:
+### Task
 
-| name | icon | color | targetWeeklyHours |
-|---|---|---|---|
-| Work — Valuelabs | briefcase | #3B82F6 | 0 (tracked by employer) |
-| Work — Avyka | laptop | #8B5CF6 | 0 (tracked by employer) |
-| Health | heart | #10B981 | 7 |
-| Personal & Home | home | #F59E0B | 3 |
-| Finance | banknote | #06B6D4 | 2 |
-| Snowops | rocket | #EC4899 | 5 |
-| Side Hustle | lightbulb | #F97316 | 0 (off-season by default) |
+Discrete to-do item linked to an area and optionally a goal.
 
-### goals
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| userId | integer FK → User | |
+| areaId | integer FK → LifeArea | |
+| goalId | integer FK → Goal | Nullable |
+| title | text | |
+| description | text | Nullable, extra detail |
+| isUrgent | integer | 0/1 — Eisenhower |
+| isImportant | integer | 0/1 — Eisenhower |
+| effortMins | integer | Estimated minutes |
+| dueDate | text | ISO date, nullable |
+| scheduledFor | text | ISO date, nullable — "do on this date" |
+| isMIT | integer | 0/1 — today's Most Important Task |
+| status | text | `todo` / `in_progress` / `done` / `cancelled` |
+| completedAt | text | Nullable |
+| createdAt | text | |
 
-Desired outcomes within a life area. Uses WOOP structure.
+### Habit
 
-```ts
-export const goals = sqliteTable('goals', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  areaId: text('area_id').notNull().references(() => lifeAreas.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  // WOOP fields
-  wish: text('wish'),                   // What do you want?
-  outcome: text('outcome'),             // What does success look/feel like?
-  obstacle: text('obstacle'),           // What's the main blocker?
-  plan: text('plan'),                   // If [obstacle], then I will...
-  // Goal structure
-  measurableTarget: text('measurable_target'),  // e.g., "Reach 75 kg"
-  deadline: text('deadline'),                   // ISO date string
-  status: text('status', { enum: ['active', 'someday', 'done', 'dropped'] }).default('active'),
-  isWipActive: integer('is_wip_active', { mode: 'boolean' }).default(true),
-  sortOrder: integer('sort_order').default(0),
-  completedAt: integer('completed_at', { mode: 'timestamp' }),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
-```
+Recurring behavior — two types via the `type` field:
 
-### tasks
+- **`build`** (positive habits): things to do (exercise, meditate, read)
+- **`limit`** (anti-habits): things to reduce or quit (Instagram scrolling, late sleeping, stress eating)
 
-Discrete to-do items, optionally linked to a goal.
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| userId | integer FK → User | |
+| areaId | integer FK → LifeArea | |
+| goalId | integer FK → Goal | Nullable — optional link |
+| title | text | e.g. "Morning workout" or "Limit Instagram" |
+| **type** | **text** | **`build` or `limit`** |
+| cadence | text | `daily` / `weekdays` / `x-per-week` / `custom` |
+| cadenceDays | text | JSON array for custom, e.g. `["mon","wed","fri"]` |
+| cadenceTarget | integer | For x-per-week: how many times per week |
+| tinyVersion | text | Build only: minimal version that still counts. Null for limit. |
+| anchor | text | "After I [X], I will [this habit]" |
+| reminderTime | text | HH:MM for push notification |
+| graceDaysAllowed | integer | Default 1. Misses within grace don't break streak. |
+| **dailyBudgetMins** | **integer** | **Limit only: allowed minutes/day (0 = quit entirely)** |
+| **peakTemptationTime** | **text** | **Limit only: HH:MM for pre-commitment nudge** |
+| **substitutionPlan** | **text** | **Limit only: "When I want to X, I will Y instead"** |
+| archived | integer | 0/1 |
+| sortOrder | integer | |
+| createdAt | text | |
 
-```ts
-export const tasks = sqliteTable('tasks', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  areaId: text('area_id').notNull().references(() => lifeAreas.id, { onDelete: 'cascade' }),
-  goalId: text('goal_id').references(() => goals.id, { onDelete: 'set null' }),
-  title: text('title').notNull(),
-  description: text('description'),
-  // Eisenhower flags
-  isUrgent: integer('is_urgent', { mode: 'boolean' }).default(false),
-  isImportant: integer('is_important', { mode: 'boolean' }).default(false),
-  // Planning
-  effortMinutes: integer('effort_minutes'),        // estimated effort
-  dueDate: text('due_date'),                       // ISO date string
-  scheduledFor: text('scheduled_for'),             // ISO date string — "do on this day"
-  isMIT: integer('is_mit', { mode: 'boolean' }).default(false),  // Most Important Task for today
-  // Status
-  status: text('status', { enum: ['todo', 'in_progress', 'done', 'dropped'] }).default('todo'),
-  completedAt: integer('completed_at', { mode: 'timestamp' }),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
-```
+### HabitLog
 
-### habits
+One row per habit per day. Unique constraint on (habitId, date).
 
-Recurring behaviors with Tiny Habits structure.
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| habitId | integer FK → Habit | |
+| date | text | ISO date (YYYY-MM-DD) |
+| **status** | **text** | **Build: `done` / `partial` / `skipped` / `missed`. Limit: `clean` / `under_budget` / `over_budget` / `slip`** |
+| value | real | Nullable — quantity (e.g., minutes scrolled for limit, reps done for build) |
+| note | text | Nullable — optional reflection |
+| createdAt | text | |
 
-```ts
-export const habits = sqliteTable('habits', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  areaId: text('area_id').notNull().references(() => lifeAreas.id, { onDelete: 'cascade' }),
-  goalId: text('goal_id').references(() => goals.id, { onDelete: 'set null' }),
-  title: text('title').notNull(),                  // "30-minute workout"
-  tinyVersion: text('tiny_version'),               // "1 push-up"
-  anchor: text('anchor'),                          // "After I brush my teeth"
-  // Cadence
-  cadence: text('cadence', { enum: ['daily', 'weekly', 'specific_days'] }).default('daily'),
-  cadenceTarget: integer('cadence_target'),         // for weekly: X times per week
-  cadenceDays: text('cadence_days'),               // for specific_days: JSON array ["mon","wed","fri"]
-  // Reminders
-  reminderTime: text('reminder_time'),             // "07:00" (HH:MM)
-  // Grace
-  graceDaysAllowed: integer('grace_days_allowed').default(1),
-  // State
-  isArchived: integer('is_archived', { mode: 'boolean' }).default(false),
-  sortOrder: integer('sort_order').default(0),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
-```
+**Status values explained:**
 
-### habit_logs
+For `build` habits:
+- `done` — fully completed (or tiny version completed)
+- `partial` — partially done
+- `skipped` — deliberately skipped (doesn't use grace)
+- `missed` — not done (auto-set by system at end of day)
 
-One row per habit per day. Source of truth for streaks.
+For `limit` habits:
+- `clean` — zero engagement with the bad habit
+- `under_budget` — used less than daily budget
+- `over_budget` — exceeded daily budget
+- `slip` — for quit habits (budget=0), any engagement
 
-```ts
-export const habitLogs = sqliteTable('habit_logs', {
-  id: text('id').primaryKey(),
-  habitId: text('habit_id').notNull().references(() => habits.id, { onDelete: 'cascade' }),
-  date: text('date').notNull(),                    // ISO date "YYYY-MM-DD"
-  status: text('status', { enum: ['done', 'partial', 'skipped', 'missed'] }).notNull(),
-  value: real('value'),                            // optional numeric (e.g., minutes, reps)
-  note: text('note'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-}, (table) => ({
-  uniqueHabitDate: unique().on(table.habitId, table.date),
-}));
-```
+### Streak (computed, cached)
 
-Status meanings:
-- `done` — completed (full or tiny version)
-- `partial` — started but didn't finish (still counts for streak)
-- `skipped` — intentionally skipped (uses grace day)
-- `missed` — day passed without logging (auto-set by system)
+Not a source-of-truth table. Materialized from HabitLog for performance.
 
-### streak_cache
+| Field | Type | Notes |
+|---|---|---|
+| habitId | integer PK, FK → Habit | |
+| currentStreak | integer | |
+| longestStreak | integer | |
+| graceDaysRemaining | integer | |
+| lastCompletedDate | text | |
+| missedTwiceCount | integer | Lifetime count of "missed twice" events |
+| updatedAt | text | |
 
-Performance cache for computed streaks. Rebuilt from `habit_logs`.
+**Streak meaning by habit type:**
+- Build habits: streak = consecutive days of doing the habit (done/partial)
+- Limit habits: streak = consecutive days clean or under budget
 
-```ts
-export const streakCache = sqliteTable('streak_cache', {
-  habitId: text('habit_id').primaryKey().references(() => habits.id, { onDelete: 'cascade' }),
-  currentStreak: integer('current_streak').default(0),
-  longestStreak: integer('longest_streak').default(0),
-  graceDaysRemaining: integer('grace_days_remaining').default(1),
-  lastCompletedDate: text('last_completed_date'),
-  missedTwice: integer('missed_twice', { mode: 'boolean' }).default(false),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
-```
+### Metric
 
-### metrics
+Numeric health/life metrics for trend tracking (weight, sleep, water, etc.).
 
-Named numeric values to track over time (health, fitness, etc.).
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| userId | integer FK → User | |
+| areaId | integer FK → LifeArea | Nullable |
+| name | text | e.g. "Weight (kg)", "Sleep (hrs)" |
+| unit | text | e.g. "kg", "hrs", "glasses" |
+| targetValue | real | Nullable — goal target |
+| targetDirection | text | `increase` / `decrease` / `maintain` |
+| sortOrder | integer | |
+| createdAt | text | |
 
-```ts
-export const metrics = sqliteTable('metrics', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  areaId: text('area_id').references(() => lifeAreas.id, { onDelete: 'set null' }),
-  name: text('name').notNull(),                    // "Weight", "Sleep hours", "Water (L)"
-  unit: text('unit'),                              // "kg", "hours", "L"
-  targetValue: real('target_value'),               // goal value
-  targetDirection: text('target_direction', { enum: ['increase', 'decrease', 'maintain'] }),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
-```
+### MetricLog
 
-### metric_logs
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| metricId | integer FK → Metric | |
+| date | text | ISO date |
+| value | real | |
+| note | text | Nullable |
+| createdAt | text | |
 
-Daily metric values.
+### Review
 
-```ts
-export const metricLogs = sqliteTable('metric_logs', {
-  id: text('id').primaryKey(),
-  metricId: text('metric_id').notNull().references(() => metrics.id, { onDelete: 'cascade' }),
-  date: text('date').notNull(),                    // "YYYY-MM-DD"
-  value: real('value').notNull(),
-  note: text('note'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-}, (table) => ({
-  uniqueMetricDate: unique().on(table.metricId, table.date),
-}));
-```
+Daily check-in and weekly review entries.
 
-### reviews
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| userId | integer FK → User | |
+| type | text | `daily` / `weekly` |
+| date | text | ISO date |
+| mood | integer | 1-5 scale |
+| energy | integer | 1-5 scale |
+| winsText | text | Free-text: what went well |
+| challengesText | text | Free-text: what was hard (reframed) |
+| tomorrowMITs | text | JSON array of task titles/IDs for next day |
+| focusAreas | text | Weekly only: JSON array of area IDs for next week |
+| notes | text | Nullable |
+| createdAt | text | |
 
-Daily check-ins and weekly reviews.
+### Win
 
-```ts
-export const reviews = sqliteTable('reviews', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  type: text('type', { enum: ['daily', 'weekly'] }).notNull(),
-  date: text('date').notNull(),                    // "YYYY-MM-DD"
-  // Daily fields
-  mood: integer('mood'),                           // 1-5 scale
-  energy: integer('energy'),                       // 1-5 scale
-  todayWins: text('today_wins'),                   // JSON array of strings
-  tomorrowMITs: text('tomorrow_mits'),             // JSON array of task IDs or free text
-  reflection: text('reflection'),                  // free text
-  // Weekly fields
-  weeklyWins: text('weekly_wins'),                 // JSON array
-  weeklyMisses: text('weekly_misses'),             // JSON array (reframed)
-  focusAreasNextWeek: text('focus_areas_next_week'), // JSON array of area IDs
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-}, (table) => ({
-  uniqueReviewTypeDate: unique().on(table.userId, table.type, table.date),
-}));
-```
+Small captured wins feeding momentum views.
 
-### wins
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| userId | integer FK → User | |
+| areaId | integer FK → LifeArea | Nullable |
+| text | text | What was the win? |
+| date | text | ISO date |
+| createdAt | text | |
 
-Quick captured wins for the progress principle.
+### FinanceSnapshot
 
-```ts
-export const wins = sqliteTable('wins', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  areaId: text('area_id').references(() => lifeAreas.id, { onDelete: 'set null' }),
-  text: text('text').notNull(),
-  date: text('date').notNull(),                    // "YYYY-MM-DD"
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
-```
+Monthly finance overview — manual entry.
 
-### finance_plans
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| userId | integer FK → User | |
+| month | text | YYYY-MM |
+| totalIncome | real | |
+| notes | text | Nullable |
+| createdAt | text | |
 
-Monthly allocation plans.
+### FinanceAllocation
 
-```ts
-export const financePlans = sqliteTable('finance_plans', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  month: text('month').notNull(),                  // "YYYY-MM"
-  totalIncome: real('total_income'),
-  notes: text('notes'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-}, (table) => ({
-  uniqueUserMonth: unique().on(table.userId, table.month),
-}));
-```
+Per-asset-class allocation within a snapshot.
 
-### finance_allocations
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| snapshotId | integer FK → FinanceSnapshot | |
+| assetClass | text | e.g. "Equity", "Debt", "Gold", "Cash", "Real Estate" |
+| targetPercent | real | Planned allocation % |
+| actualAmount | real | What was actually invested/held |
+| notes | text | Nullable |
 
-Per-asset-class allocations within a monthly plan.
-
-```ts
-export const financeAllocations = sqliteTable('finance_allocations', {
-  id: text('id').primaryKey(),
-  planId: text('plan_id').notNull().references(() => financePlans.id, { onDelete: 'cascade' }),
-  assetClass: text('asset_class').notNull(),       // "Equity", "Debt", "Gold", "Cash", "Real Estate"
-  targetPercent: real('target_percent'),
-  targetAmount: real('target_amount'),
-  actualAmount: real('actual_amount'),
-  notes: text('notes'),
-});
-```
-
-### push_subscriptions
+### PushSubscription
 
 Web Push subscription endpoints for notifications.
 
-```ts
-export const pushSubscriptions = sqliteTable('push_subscriptions', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  endpoint: text('endpoint').notNull(),
-  p256dh: text('p256dh').notNull(),               // encryption key
-  auth: text('auth').notNull(),                   // auth secret
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
-```
+| Field | Type | Notes |
+|---|---|---|
+| id | integer PK | |
+| userId | integer FK → User | |
+| endpoint | text | Push API endpoint URL |
+| p256dh | text | Client public key |
+| auth | text | Auth secret |
+| createdAt | text | |
 
 ## Indexes
 
-Add these for query performance:
+- `habit_logs`: unique index on `(habitId, date)` — one log per habit per day
+- `tasks`: index on `(userId, status, scheduledFor)` — Today view query
+- `habits`: index on `(userId, archived)` — active habits list
+- `metric_logs`: index on `(metricId, date)` — trend queries
+- `reviews`: unique index on `(userId, type, date)` — one review per type per day
 
-```ts
-// Habit logs: frequent lookups by habit + date range
-habitLogsHabitIdx: index('idx_habit_logs_habit').on(habitLogs.habitId)
-habitLogsDateIdx: index('idx_habit_logs_date').on(habitLogs.date)
+## Streak computation logic
 
-// Tasks: filter by area, status, scheduled date
-tasksAreaIdx: index('idx_tasks_area').on(tasks.areaId)
-tasksScheduledIdx: index('idx_tasks_scheduled').on(tasks.scheduledFor)
-tasksMITIdx: index('idx_tasks_mit').on(tasks.isMIT)
+```
+function computeStreak(habit, logs):
+  sort logs by date descending
+  streak = 0
+  graceRemaining = habit.graceDaysAllowed
+  missedTwice = false
 
-// Goals: filter by area, status
-goalsAreaIdx: index('idx_goals_area').on(goals.areaId)
-goalsStatusIdx: index('idx_goals_status').on(goals.status)
+  for each expected date (today backwards, respecting cadence):
+    log = find log for this date
 
-// Wins: lookup by date
-winsDateIdx: index('idx_wins_date').on(wins.date)
+    if habit.type == 'build':
+      isGood = log exists and log.status in [done, partial]
+    else: // limit
+      isGood = log exists and log.status in [clean, under_budget]
 
-// Reviews: lookup by type + date
-reviewsDateIdx: index('idx_reviews_date').on(reviews.date)
+    if isGood:
+      streak++
+      graceRemaining = habit.graceDaysAllowed  // reset grace
+    else if graceRemaining > 0:
+      graceRemaining--
+      streak++  // grace day — streak preserved
+    else:
+      break  // streak broken
+
+  // Check "missed twice" — last 2 expected dates both missed/over-budget
+  last2 = get logs for last 2 expected dates
+  if both are missing or have bad status:
+    missedTwice = true
+
+  return { currentStreak: streak, graceRemaining, missedTwice }
 ```
 
-## Migration strategy
-
-Drizzle Kit generates SQL migrations from schema changes:
-
-```bash
-# Generate migration after schema change
-npx drizzle-kit generate
-
-# Apply to local D1
-npx drizzle-kit push
-
-# Apply to production
-npx wrangler d1 migrations apply personal-tracker-prod
-```
-
-All schema changes are forward-only (no destructive migrations in production without a manual review step).
+This is computed on read and cached in the `streaks` table. The cache is invalidated when a HabitLog is created/updated.

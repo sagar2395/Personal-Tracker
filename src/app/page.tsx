@@ -8,6 +8,8 @@ import {
   recordAppUsage,
   getEngagementData,
   checkAndUnlockAchievements,
+  getInboxTasks,
+  getInboxStats,
 } from "./actions";
 import { AppShell } from "@/components/app-shell";
 import { TodayView } from "@/components/today-view";
@@ -17,11 +19,13 @@ export default async function Home() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [todayHabits, mits, deadlinesData, recentWins] = await Promise.all([
+  const [todayHabits, mits, deadlinesData, recentWins, inboxTasks, inboxStats] = await Promise.all([
     getTodayHabits(),
     getTodayMITs(),
     getUpcomingDeadlines(7),
     getRecentWins(3),
+    getInboxTasks(),
+    getInboxStats(),
   ]);
 
   const usageStreak = await recordAppUsage();
@@ -90,6 +94,8 @@ export default async function Home() {
           welcomeBack={welcomeBack}
           unlockedAchievements={engagementData?.unlockedAchievements ?? []}
           newlyUnlocked={newlyUnlocked}
+          inboxTasks={inboxTasks}
+          inboxStats={inboxStats}
         />
       </div>
     </AppShell>

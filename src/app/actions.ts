@@ -1400,6 +1400,155 @@ export async function getEngagementData() {
   return { usageStreak, whyStatement, unlockedAchievements };
 }
 
+// ── Inbox actions ──
+
+export async function getOrCreateInboxArea() {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const db = getDb();
+
+  const existing = await db
+    .select()
+    .from(lifeAreas)
+    .where(and(eq(lifeAreas.userId, user.id), eq(lifeAreas.name, "Inbox")))
+    .get();
+
+  if (existing) return existing;
+
+  const maxSort = await db
+    .select({ max: sql<number>`COALESCE(MAX(sort_order), 0)` })
+    .from(lifeAreas)
+    .where(eq(lifeAreas.userId, user.id))
+    .get();
+
+  const result = await db
+    .insert(lifeAreas)
+    .values({
+      userId: user.id,
+      name: "Inbox",
+      icon: "inbox",
+      color: "#64748b",
+      priorityWeight: 1,
+      targetWeeklyHours: 0,
+      isSeason: false,
+      sortOrder: (maxSort?.max ?? 0) + 1,
+    })
+    .returning()
+    .get();
+
+  return result;
+}
+
+export async function quickAddInboxTask(title: string) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const inbox = await getOrCreateInboxArea();
+  if (!inbox) return { error: "Could not create inbox area" };
+
+  const db = getDb();
+  await db.insert(tasks)
+    .values({
+      userId: user.id,
+      areaId: inbox.id,
+      title,
+      isUrgent: true,
+      isImportant: false,
+    })
+    .run();
+
+  revalidatePath("/");
+  revalidatePath("/goals");
+  return { success: true };
+}
+
+export async function getInboxTasks() {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const db = getDb();
+
+  const inbox = await db
+    .select()
+    .from(lifeAreas)
+    .where(and(eq(lifeAreas.userId, user.id), eq(lifeAreas.name, "Inbox")))
+    .get();
+
+  if (!inbox) return [];
+
+  return await db
+    .select()
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.userId, user.id),
+        eq(tasks.areaId, inbox.id),
+        ne(tasks.status, "done"),
+        ne(tasks.status, "cancelled")
+      )
+    )
+    .orderBy(desc(tasks.createdAt))
+    .all();
+}
+
+export async function getInboxStats() {
+  const user = await getCurrentUser();
+  if (!user) return { openCount: 0, thisWeekAdded: 0, thisWeekCompleted: 0 };
+  const db = getDb();
+
+  const inbox = await db
+    .select()
+    .from(lifeAreas)
+    .where(and(eq(lifeAreas.userId, user.id), eq(lifeAreas.name, "Inbox")))
+    .get();
+
+  if (!inbox) return { openCount: 0, thisWeekAdded: 0, thisWeekCompleted: 0 };
+
+  const openCount = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.areaId, inbox.id),
+        ne(tasks.status, "done"),
+        ne(tasks.status, "cancelled")
+      )
+    )
+    .get();
+
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString();
+
+  const thisWeekAdded = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.areaId, inbox.id),
+        gte(tasks.createdAt, weekAgoStr)
+      )
+    )
+    .get();
+
+  const thisWeekCompleted = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.areaId, inbox.id),
+        eq(tasks.status, "done"),
+        gte(tasks.completedAt, weekAgoStr)
+      )
+    )
+    .get();
+
+  return {
+    openCount: openCount?.count ?? 0,
+    thisWeekAdded: thisWeekAdded?.count ?? 0,
+    thisWeekCompleted: thisWeekCompleted?.count ?? 0,
+  };
+}
+
 // ── Data export ──
 
 export async function exportAllData() {

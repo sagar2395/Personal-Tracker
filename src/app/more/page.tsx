@@ -14,18 +14,18 @@ import Link from "next/link";
 
 const menuItems = [
   {
+    href: "/insights",
+    label: "Insights",
+    description: "Trends, consistency, and analytics",
+    icon: BarChart3,
+    phase: "",
+  },
+  {
     href: "#",
     label: "Reviews",
     description: "Daily check-in & weekly review",
     icon: ClipboardCheck,
     phase: "Phase 3",
-  },
-  {
-    href: "#",
-    label: "Insights",
-    description: "Trends and analytics",
-    icon: BarChart3,
-    phase: "Phase 2",
   },
   {
     href: "#",
@@ -39,7 +39,7 @@ const menuItems = [
     label: "Settings",
     description: "Areas, notifications, data",
     icon: Settings,
-    phase: "Phase 2",
+    phase: "Coming soon",
   },
 ];
 
@@ -53,18 +53,27 @@ export default async function MorePage() {
         <h1 className="text-2xl font-bold tracking-tight">More</h1>
 
         <div className="space-y-2">
-          {menuItems.map((item) => (
-            <Card key={item.label} className="p-3">
-              <div className="flex items-center gap-3">
-                <item.icon className="h-5 w-5 text-slate-500 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{item.label}</p>
-                  <p className="text-xs text-slate-500">{item.description}</p>
+          {menuItems.map((item) => {
+            const content = (
+              <Card key={item.label} className="p-3 hover:border-slate-600 transition-colors">
+                <div className="flex items-center gap-3">
+                  <item.icon className="h-5 w-5 text-slate-500 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="text-xs text-slate-500">{item.description}</p>
+                  </div>
+                  {item.phase && (
+                    <span className="text-[10px] text-slate-600">{item.phase}</span>
+                  )}
                 </div>
-                <span className="text-[10px] text-slate-600">{item.phase}</span>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+            return item.href === "#" ? (
+              <div key={item.label}>{content}</div>
+            ) : (
+              <Link key={item.label} href={item.href}>{content}</Link>
+            );
+          })}
         </div>
 
         <div className="pt-4 border-t border-slate-800">

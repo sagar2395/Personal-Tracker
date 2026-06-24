@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getTodayHabits } from "./actions";
+import {
+  getTodayHabits,
+  getTodayMITs,
+  getUpcomingDeadlines,
+  getRecentWins,
+} from "./actions";
 import { AppShell } from "@/components/app-shell";
 import { TodayView } from "@/components/today-view";
 
@@ -8,13 +13,37 @@ export default async function Home() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const todayHabits = await getTodayHabits();
+  const [todayHabits, mits, deadlinesData, recentWins] = await Promise.all([
+    getTodayHabits(),
+    getTodayMITs(),
+    getUpcomingDeadlines(7),
+    getRecentWins(3),
+  ]);
+
   const today = new Date();
-  const greeting = today.getHours() < 12
-    ? "Good morning"
-    : today.getHours() < 17
-      ? "Good afternoon"
-      : "Good evening";
+  const greeting =
+    today.getHours() < 12
+      ? "Good morning"
+      : today.getHours() < 17
+        ? "Good afternoon"
+        : "Good evening";
+
+  const deadlines = [
+    ...deadlinesData.tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      dueDate: t.dueDate,
+      deadline: null as string | null,
+      type: "task" as const,
+    })),
+    ...deadlinesData.goals.map((g) => ({
+      id: g.id,
+      title: g.title,
+      dueDate: null as string | null,
+      deadline: g.deadline,
+      type: "goal" as const,
+    })),
+  ];
 
   return (
     <AppShell>
@@ -32,7 +61,12 @@ export default async function Home() {
           </p>
         </header>
 
-        <TodayView habits={todayHabits} />
+        <TodayView
+          habits={todayHabits}
+          mits={mits}
+          deadlines={deadlines}
+          recentWins={recentWins}
+        />
       </div>
     </AppShell>
   );

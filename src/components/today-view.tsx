@@ -1,9 +1,26 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { HabitCard } from "./habit-card";
+import {
+  updateTaskStatus,
+  captureWin,
+} from "@/app/actions";
+import {
+  Star,
+  CheckCircle2,
+  Circle,
+  Trophy,
+  Calendar,
+  Plus,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 import type { StreakResult } from "@/lib/streaks";
+import { cn } from "@/lib/utils";
 
 interface HabitWithContext {
   habit: {
@@ -27,22 +44,71 @@ interface HabitWithContext {
   } | null | undefined;
 }
 
-interface TodayViewProps {
-  habits: HabitWithContext[];
+interface MITTask {
+  id: number;
+  title: string;
+  status: string;
+  isMIT: boolean;
 }
 
-export function TodayView({ habits }: TodayViewProps) {
+interface Deadline {
+  id: number;
+  title: string;
+  dueDate?: string | null;
+  deadline?: string | null;
+  type: "task" | "goal";
+}
+
+interface Win {
+  id: number;
+  text: string;
+  date: string;
+}
+
+interface TodayViewProps {
+  habits: HabitWithContext[];
+  mits?: MITTask[];
+  deadlines?: Deadline[];
+  recentWins?: Win[];
+}
+
+export function TodayView({ habits, mits = [], deadlines = [], recentWins = [] }: TodayViewProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [winText, setWinText] = useState("");
+  const [showWinInput, setShowWinInput] = useState(false);
+
   const buildHabits = habits.filter((h) => h.habit.type === "build");
   const limitHabits = habits.filter((h) => h.habit.type === "limit");
-  const completedCount = habits.filter((h) => h.todayLog).length;
-  const totalCount = habits.length;
-  const momentumPercent = totalCount > 0
-    ? Math.round((completedCount / totalCount) * 100)
+  const completedHabits = habits.filter((h) => h.todayLog).length;
+  const completedMITs = mits.filter((m) => m.status === "done").length;
+  const totalItems = habits.length + mits.length;
+  const completedItems = completedHabits + completedMITs;
+  const momentumPercent = totalItems > 0
+    ? Math.round((completedItems / totalItems) * 100)
     : 0;
+
+  function handleMITDone(taskId: number) {
+    startTransition(async () => {
+      await updateTaskStatus(taskId, "done");
+      router.refresh();
+    });
+  }
+
+  function handleWinSubmit() {
+    if (!winText.trim()) return;
+    startTransition(async () => {
+      await captureWin(winText.trim());
+      setWinText("");
+      setShowWinInput(false);
+      router.refresh();
+    });
+  }
 
   return (
     <div className="space-y-6">
-      {totalCount > 0 && (
+      {/* Momentum ring */}
+      {totalItems > 0 && (
         <Card className="flex items-center gap-4 p-4">
           <div className="relative h-14 w-14 flex-shrink-0">
             <svg className="h-14 w-14 -rotate-90" viewBox="0 0 36 36">
@@ -69,12 +135,49 @@ export function TodayView({ habits }: TodayViewProps) {
           <div>
             <p className="text-sm font-medium">Today&apos;s momentum</p>
             <p className="text-xs text-slate-400">
-              {completedCount} of {totalCount} habits logged
+              {completedHabits}/{habits.length} habits · {completedMITs}/{mits.length} MITs
             </p>
           </div>
         </Card>
       )}
 
+      {/* MITs section */}
+      {mits.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Star className="h-4 w-4 text-indigo-400" />
+            <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+              Most important tasks
+            </h2>
+          </div>
+          {mits.map((task) => (
+            <Card key={task.id} className="p-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => task.status !== "done" && handleMITDone(task.id)}
+                  disabled={isPending || task.status === "done"}
+                >
+                  {task.status === "done" ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  ) : (
+                    <Circle className="h-5 w-5 text-slate-600 hover:text-indigo-400" />
+                  )}
+                </button>
+                <span
+                  className={cn(
+                    "text-sm flex-1",
+                    task.status === "done" && "line-through text-slate-600"
+                  )}
+                >
+                  {task.title}
+                </span>
+              </div>
+            </Card>
+          ))}
+        </section>
+      )}
+
+      {/* Build habits */}
       {buildHabits.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center gap-2">
@@ -91,6 +194,7 @@ export function TodayView({ habits }: TodayViewProps) {
         </section>
       )}
 
+      {/* Limit habits */}
       {limitHabits.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center gap-2">
@@ -107,7 +211,79 @@ export function TodayView({ habits }: TodayViewProps) {
         </section>
       )}
 
-      {totalCount === 0 && (
+      {/* Win capture */}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-amber-400" />
+            <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+              Wins
+            </h2>
+          </div>
+          {!showWinInput && (
+            <button
+              onClick={() => setShowWinInput(true)}
+              className="text-xs text-indigo-400 hover:text-indigo-300"
+            >
+              <Plus className="h-4 w-4 inline mr-0.5" />
+              Capture a win
+            </button>
+          )}
+        </div>
+        {showWinInput && (
+          <Card className="p-3">
+            <div className="flex gap-2">
+              <Input
+                value={winText}
+                onChange={(e) => setWinText(e.target.value)}
+                placeholder="What went well today?"
+                autoFocus
+                onKeyDown={(e) => e.key === "Enter" && handleWinSubmit()}
+              />
+              <Button
+                onClick={handleWinSubmit}
+                disabled={!winText.trim() || isPending}
+                className="flex-shrink-0"
+              >
+                Save
+              </Button>
+            </div>
+          </Card>
+        )}
+        {recentWins.length > 0 && (
+          <div className="space-y-1">
+            {recentWins.slice(0, 3).map((win) => (
+              <div key={win.id} className="flex items-start gap-2 text-sm">
+                <span className="text-amber-400 mt-0.5">·</span>
+                <span className="text-slate-400">{win.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Upcoming deadlines */}
+      {deadlines.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-slate-400" />
+            <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+              Upcoming
+            </h2>
+          </div>
+          {deadlines.slice(0, 5).map((item) => (
+            <div key={`${item.type}-${item.id}`} className="flex items-center justify-between text-sm px-1">
+              <span className="text-slate-400 truncate flex-1">{item.title}</span>
+              <span className="text-[10px] text-slate-500 flex-shrink-0 ml-2">
+                {item.dueDate || item.deadline}
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* Empty state */}
+      {habits.length === 0 && mits.length === 0 && (
         <Card className="p-6 text-center">
           <p className="text-slate-400 mb-2">No habits yet</p>
           <p className="text-sm text-slate-500">

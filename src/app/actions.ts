@@ -3,9 +3,12 @@
 import { getDb } from "@/db";
 import { habits, habitLogs, streaks } from "@/db/schema/habits";
 import { lifeAreas } from "@/db/schema/areas";
+import { goals } from "@/db/schema/goals";
+import { tasks } from "@/db/schema/tasks";
+import { wins } from "@/db/schema/reviews";
 import { getCurrentUser } from "@/lib/auth";
 import { computeStreak } from "@/lib/streaks";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, ne, gte, lte, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getAreas() {
@@ -226,4 +229,412 @@ export async function deleteHabit(habitId: number) {
   revalidatePath("/");
   revalidatePath("/habits");
   return { success: true };
+}
+
+// ── Goal actions ──
+
+type GoalStatus = "active" | "someday" | "done" | "dropped";
+
+export async function getGoals(status?: GoalStatus) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const db = getDb();
+  const conditions = [eq(goals.userId, user.id)];
+  if (status) conditions.push(eq(goals.status, status));
+  return db
+    .select()
+    .from(goals)
+    .where(and(...conditions))
+    .orderBy(goals.sortOrder)
+    .all();
+}
+
+export async function getGoalWithTasks(goalId: number) {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const db = getDb();
+  const goal = db
+    .select()
+    .from(goals)
+    .where(and(eq(goals.id, goalId), eq(goals.userId, user.id)))
+    .get();
+  if (!goal) return null;
+
+  const goalTasks = db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.goalId, goalId), ne(tasks.status, "cancelled")))
+    .orderBy(tasks.createdAt)
+    .all();
+
+  const area = db
+    .select()
+    .from(lifeAreas)
+    .where(eq(lifeAreas.id, goal.areaId))
+    .get();
+
+  const goalHabits = db
+    .select()
+    .from(habits)
+    .where(and(eq(habits.goalId, goalId), eq(habits.archived, false)))
+    .all();
+
+  return { goal, tasks: goalTasks, area, habits: goalHabits };
+}
+
+const WIP_LIMIT = 3;
+
+export async function createGoal(data: {
+  title: string;
+  areaId: number;
+  wish?: string;
+  outcome?: string;
+  obstacle?: string;
+  plan?: string;
+  measurableTarget?: string;
+  deadline?: string;
+  status?: GoalStatus;
+}) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+
+  const activeInArea = db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(goals)
+    .where(
+      and(
+        eq(goals.userId, user.id),
+        eq(goals.areaId, data.areaId),
+        eq(goals.status, "active"),
+        eq(goals.wipActive, true)
+      )
+    )
+    .get();
+
+  if ((activeInArea?.count ?? 0) >= WIP_LIMIT && (data.status ?? "active") === "active") {
+    return {
+      error: `WIP limit reached: you already have ${WIP_LIMIT} active goals in this area. Complete or pause one first.`,
+    };
+  }
+
+  const maxSort = db
+    .select({ max: sql<number>`COALESCE(MAX(sort_order), 0)` })
+    .from(goals)
+    .where(eq(goals.userId, user.id))
+    .get();
+
+  db.insert(goals)
+    .values({
+      userId: user.id,
+      areaId: data.areaId,
+      title: data.title,
+      wish: data.wish ?? null,
+      outcome: data.outcome ?? null,
+      obstacle: data.obstacle ?? null,
+      plan: data.plan ?? null,
+      measurableTarget: data.measurableTarget ?? null,
+      deadline: data.deadline ?? null,
+      status: data.status ?? "active",
+      sortOrder: (maxSort?.max ?? 0) + 1,
+    })
+    .run();
+
+  revalidatePath("/goals");
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function updateGoalStatus(goalId: number, status: GoalStatus) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+  db.update(goals)
+    .set({
+      status,
+      completedAt: status === "done" ? new Date().toISOString() : null,
+    })
+    .where(and(eq(goals.id, goalId), eq(goals.userId, user.id)))
+    .run();
+  revalidatePath("/goals");
+  revalidatePath("/");
+  return { success: true };
+}
+
+// ── Task actions ──
+
+type TaskStatus = "todo" | "in_progress" | "done" | "cancelled";
+
+export async function getTasks(filters?: {
+  status?: TaskStatus;
+  goalId?: number;
+  scheduledFor?: string;
+  isMIT?: boolean;
+}) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const db = getDb();
+  const conditions = [eq(tasks.userId, user.id)];
+  if (filters?.status) conditions.push(eq(tasks.status, filters.status));
+  if (filters?.goalId) conditions.push(eq(tasks.goalId, filters.goalId));
+  if (filters?.scheduledFor) conditions.push(eq(tasks.scheduledFor, filters.scheduledFor));
+  if (filters?.isMIT) conditions.push(eq(tasks.isMIT, true));
+  return db
+    .select()
+    .from(tasks)
+    .where(and(...conditions))
+    .orderBy(tasks.createdAt)
+    .all();
+}
+
+export async function createTask(data: {
+  title: string;
+  areaId: number;
+  goalId?: number;
+  description?: string;
+  isUrgent?: boolean;
+  isImportant?: boolean;
+  effortMins?: number;
+  dueDate?: string;
+  scheduledFor?: string;
+}) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+
+  db.insert(tasks)
+    .values({
+      userId: user.id,
+      areaId: data.areaId,
+      goalId: data.goalId ?? null,
+      title: data.title,
+      description: data.description ?? null,
+      isUrgent: data.isUrgent ?? false,
+      isImportant: data.isImportant ?? true,
+      effortMins: data.effortMins ?? null,
+      dueDate: data.dueDate ?? null,
+      scheduledFor: data.scheduledFor ?? null,
+    })
+    .run();
+
+  revalidatePath("/goals");
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function updateTaskStatus(taskId: number, status: TaskStatus) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+  db.update(tasks)
+    .set({
+      status,
+      completedAt: status === "done" ? new Date().toISOString() : null,
+    })
+    .where(and(eq(tasks.id, taskId), eq(tasks.userId, user.id)))
+    .run();
+  revalidatePath("/goals");
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function toggleMIT(taskId: number) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+  const task = db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, taskId), eq(tasks.userId, user.id)))
+    .get();
+  if (!task) return { error: "Task not found" };
+
+  if (!task.isMIT) {
+    const today = new Date().toISOString().split("T")[0];
+    const currentMITs = db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.userId, user.id),
+          eq(tasks.isMIT, true),
+          eq(tasks.status, "todo")
+        )
+      )
+      .get();
+    if ((currentMITs?.count ?? 0) >= 3) {
+      return { error: "You can only have 3 MITs. Complete or remove one first." };
+    }
+  }
+
+  db.update(tasks)
+    .set({ isMIT: !task.isMIT })
+    .where(eq(tasks.id, taskId))
+    .run();
+  revalidatePath("/");
+  revalidatePath("/goals");
+  return { success: true };
+}
+
+// ── Win actions ──
+
+export async function captureWin(text: string, areaId?: number) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+  const today = new Date().toISOString().split("T")[0];
+  db.insert(wins)
+    .values({
+      userId: user.id,
+      areaId: areaId ?? null,
+      text,
+      date: today,
+    })
+    .run();
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function getRecentWins(days: number = 7) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const db = getDb();
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const sinceStr = since.toISOString().split("T")[0];
+  return db
+    .select()
+    .from(wins)
+    .where(and(eq(wins.userId, user.id), gte(wins.date, sinceStr)))
+    .orderBy(desc(wins.date))
+    .all();
+}
+
+// ── Today MITs ──
+
+export async function getTodayMITs() {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const db = getDb();
+  return db
+    .select()
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.userId, user.id),
+        eq(tasks.isMIT, true),
+        ne(tasks.status, "done"),
+        ne(tasks.status, "cancelled")
+      )
+    )
+    .orderBy(tasks.createdAt)
+    .all();
+}
+
+// ── Balance / area stats ──
+
+export async function getAreaStats() {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const db = getDb();
+  const areas = db
+    .select()
+    .from(lifeAreas)
+    .where(eq(lifeAreas.userId, user.id))
+    .orderBy(lifeAreas.sortOrder)
+    .all();
+
+  const result = [];
+  for (const area of areas) {
+    const activeGoals = db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(goals)
+      .where(
+        and(
+          eq(goals.areaId, area.id),
+          eq(goals.status, "active")
+        )
+      )
+      .get();
+
+    const openTasks = db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.areaId, area.id),
+          eq(tasks.status, "todo")
+        )
+      )
+      .get();
+
+    const areaHabits = db
+      .select()
+      .from(habits)
+      .where(and(eq(habits.areaId, area.id), eq(habits.archived, false)))
+      .all();
+
+    const totalEffort = db
+      .select({ total: sql<number>`COALESCE(SUM(effort_mins), 0)` })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.areaId, area.id),
+          eq(tasks.status, "todo")
+        )
+      )
+      .get();
+
+    result.push({
+      area,
+      activeGoals: activeGoals?.count ?? 0,
+      openTasks: openTasks?.count ?? 0,
+      habitCount: areaHabits.length,
+      plannedMins: totalEffort?.total ?? 0,
+    });
+  }
+  return result;
+}
+
+// ── Upcoming deadlines ──
+
+export async function getUpcomingDeadlines(days: number = 7) {
+  const user = await getCurrentUser();
+  if (!user) return { tasks: [] as typeof tasks.$inferSelect[], goals: [] as typeof goals.$inferSelect[] };
+  const db = getDb();
+  const today = new Date().toISOString().split("T")[0];
+  const future = new Date();
+  future.setDate(future.getDate() + days);
+  const futureStr = future.toISOString().split("T")[0];
+
+  const deadlineTasks = db
+    .select()
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.userId, user.id),
+        ne(tasks.status, "done"),
+        ne(tasks.status, "cancelled"),
+        gte(tasks.dueDate, today),
+        lte(tasks.dueDate, futureStr)
+      )
+    )
+    .orderBy(asc(tasks.dueDate))
+    .all();
+
+  const deadlineGoals = db
+    .select()
+    .from(goals)
+    .where(
+      and(
+        eq(goals.userId, user.id),
+        eq(goals.status, "active"),
+        gte(goals.deadline, today),
+        lte(goals.deadline, futureStr)
+      )
+    )
+    .orderBy(asc(goals.deadline))
+    .all();
+
+  return { tasks: deadlineTasks, goals: deadlineGoals };
 }

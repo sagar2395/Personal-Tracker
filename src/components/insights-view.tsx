@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Target, Zap, Sparkles } from "lucide-react";
+import { deepWorkVerdict, impactLabel } from "@/lib/analysis";
 
 interface HabitWithLogs {
   habit: {
@@ -20,8 +22,21 @@ interface HabitWithLogs {
   }[];
 }
 
+interface WorkAnalysis {
+  strategicDone: number;
+  reactiveDone: number;
+  strategicMins: number;
+  reactiveMins: number;
+  openStrategic: number;
+  openReactive: number;
+  goalLinkedRatio: number;
+  topImpactDone: { title: string; impactLevel: number; completedAt: string | null }[];
+  habitImpact: { title: string; impactLevel: number; type: string }[];
+}
+
 interface InsightsViewProps {
   habitsWithLogs: HabitWithLogs[];
+  workAnalysis?: WorkAnalysis;
 }
 
 const TIME_RANGES = [
@@ -59,7 +74,7 @@ function computeConsistency(
   return days.length > 0 ? Math.round((successes / days.length) * 100) : 0;
 }
 
-export function InsightsView({ habitsWithLogs }: InsightsViewProps) {
+export function InsightsView({ habitsWithLogs, workAnalysis }: InsightsViewProps) {
   const [rangeDays, setRangeDays] = useState(30);
   const selectedDays = getLastNDays(rangeDays);
   const buildHabits = habitsWithLogs.filter((h) => h.habit.type === "build");
@@ -102,6 +117,155 @@ export function InsightsView({ habitsWithLogs }: InsightsViewProps) {
           </span>
         )}
       </div>
+
+      {/* Strategic vs reactive work (last 30 days) */}
+      {workAnalysis &&
+        (workAnalysis.strategicDone + workAnalysis.reactiveDone > 0 ||
+          workAnalysis.openStrategic + workAnalysis.openReactive > 0) && (
+          (() => {
+            const totalDone = workAnalysis.strategicDone + workAnalysis.reactiveDone;
+            const deepRatio = totalDone > 0 ? workAnalysis.strategicDone / totalDone : 0;
+            const deepPct = Math.round(deepRatio * 100);
+            const totalMins = workAnalysis.strategicMins + workAnalysis.reactiveMins;
+            const stratMinPct = totalMins > 0
+              ? Math.round((workAnalysis.strategicMins / totalMins) * 100)
+              : 0;
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Target className="h-4 w-4 text-indigo-400" />
+                    Deep work vs busywork — last 30 days
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Deep work ratio gauge */}
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">Goal-aligned / high-impact</span>
+                      <span className="font-medium text-indigo-300">{deepPct}%</span>
+                    </div>
+                    <div className="flex h-3 rounded-full overflow-hidden bg-slate-800">
+                      <div
+                        className="bg-indigo-500 transition-all"
+                        style={{ width: `${deepPct}%` }}
+                      />
+                      <div
+                        className="bg-amber-500/70 transition-all"
+                        style={{ width: `${100 - deepPct}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+                      <span>{workAnalysis.strategicDone} strategic done</span>
+                      <span>{workAnalysis.reactiveDone} reactive done</span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    {deepWorkVerdict(deepRatio, totalDone)}
+                  </p>
+
+                  {/* Time split */}
+                  {totalMins > 0 && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg bg-slate-800/50 p-3">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+                          Strategic time
+                        </p>
+                        <p className="text-lg font-bold text-indigo-300">
+                          {Math.round(workAnalysis.strategicMins / 60)}h
+                          <span className="text-xs text-slate-500 ml-1">
+                            {stratMinPct}%
+                          </span>
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-slate-800/50 p-3">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+                          Reactive time
+                        </p>
+                        <p className="text-lg font-bold text-amber-300">
+                          {Math.round(workAnalysis.reactiveMins / 60)}h
+                          <span className="text-xs text-slate-500 ml-1">
+                            {100 - stratMinPct}%
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Open backlog split */}
+                  {(workAnalysis.openStrategic + workAnalysis.openReactive) > 0 && (
+                    <p className="text-xs text-slate-500">
+                      Open now: {workAnalysis.openStrategic} strategic ·{" "}
+                      {workAnalysis.openReactive} reactive
+                      {workAnalysis.openReactive > workAnalysis.openStrategic &&
+                        " — your backlog is tilting toward busywork."}
+                    </p>
+                  )}
+
+                  {/* Top impact wins */}
+                  {workAnalysis.topImpactDone.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800">
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" /> Highest-impact wins
+                      </p>
+                      <div className="space-y-1">
+                        {workAnalysis.topImpactDone.map((t, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center justify-between text-xs"
+                          >
+                            <span className="text-slate-400 truncate flex-1">
+                              {t.title}
+                            </span>
+                            <Badge variant="streak" className="text-[9px] ml-2">
+                              {impactLabel(t.impactLevel)}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()
+        )}
+
+      {/* Habit impact ranking */}
+      {workAnalysis && workAnalysis.habitImpact.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Zap className="h-4 w-4 text-indigo-400" />
+              Habits by life impact
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {workAnalysis.habitImpact.map((h, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-sm text-slate-300 flex-1 truncate">
+                  {h.title}
+                </span>
+                <div className="flex gap-0.5">
+                  {[1, 2, 3, 4, 5].map((lvl) => (
+                    <span
+                      key={lvl}
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        lvl <= h.impactLevel ? "bg-indigo-400" : "bg-slate-700"
+                      )}
+                    />
+                  ))}
+                </div>
+                <span className="text-[10px] text-slate-500 w-20 text-right">
+                  {impactLabel(h.impactLevel)}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Build habit consistency */}
       {buildHabits.length > 0 && (

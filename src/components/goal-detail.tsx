@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   ArrowLeft,
   Target,
@@ -10,11 +11,21 @@ import {
   CheckCircle2,
   Circle,
   AlertTriangle,
+  Gift,
+  Heart,
+  Sparkles,
+  PartyPopper,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
-import { updateGoalStatus, updateTaskStatus } from "@/app/actions";
+import { useState, useTransition } from "react";
+import {
+  updateGoalStatus,
+  updateTaskStatus,
+  updateGoalReward,
+  claimGoalReward,
+} from "@/app/actions";
 import { cn } from "@/lib/utils";
+import { impactLabel } from "@/lib/analysis";
 
 interface GoalDetailProps {
   goal: {
@@ -24,6 +35,10 @@ interface GoalDetailProps {
     outcome: string | null;
     obstacle: string | null;
     plan: string | null;
+    whyItMatters: string | null;
+    impactLevel: number;
+    reward: string | null;
+    rewardClaimed: boolean;
     measurableTarget: string | null;
     deadline: string | null;
     status: string;
@@ -55,6 +70,8 @@ function statusBadgeVariant(status: string) {
 export function GoalDetail({ goal, tasks, area, habits }: GoalDetailProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [rewardEditing, setRewardEditing] = useState(false);
+  const [rewardText, setRewardText] = useState(goal.reward ?? "");
 
   const doneTasks = tasks.filter((t) => t.status === "done").length;
   const totalTasks = tasks.length;
@@ -63,6 +80,21 @@ export function GoalDetail({ goal, tasks, area, habits }: GoalDetailProps) {
   function handleStatusChange(status: "active" | "someday" | "done" | "dropped") {
     startTransition(async () => {
       await updateGoalStatus(goal.id, status);
+      router.refresh();
+    });
+  }
+
+  function handleSaveReward() {
+    startTransition(async () => {
+      await updateGoalReward(goal.id, rewardText.trim());
+      setRewardEditing(false);
+      router.refresh();
+    });
+  }
+
+  function handleClaimReward() {
+    startTransition(async () => {
+      await claimGoalReward(goal.id);
       router.refresh();
     });
   }
@@ -117,6 +149,145 @@ export function GoalDetail({ goal, tasks, area, habits }: GoalDetailProps) {
             />
           </div>
         </div>
+      )}
+
+      {/* Completion celebration + reward claim */}
+      {goal.status === "done" && (
+        <Card className="border-emerald-500/30 bg-emerald-950/20">
+          <CardContent className="pt-4">
+            <div className="flex items-start gap-3">
+              <PartyPopper className="h-6 w-6 text-emerald-400 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-emerald-300">
+                  Goal complete. That&apos;s a real win — savour it.
+                </p>
+                {goal.reward && !goal.rewardClaimed && (
+                  <>
+                    <p className="text-sm text-slate-300 mt-2">
+                      You promised yourself:{" "}
+                      <span className="text-rose-300 font-medium">{goal.reward}</span>
+                    </p>
+                    <Button
+                      variant="success"
+                      className="mt-3"
+                      onClick={handleClaimReward}
+                      disabled={isPending}
+                    >
+                      <Gift className="h-4 w-4 mr-1" />
+                      Claim my reward
+                    </Button>
+                  </>
+                )}
+                {goal.reward && goal.rewardClaimed && (
+                  <p className="text-sm text-slate-400 mt-2">
+                    <Gift className="h-3.5 w-3.5 inline text-rose-300 mr-1" />
+                    Reward claimed: {goal.reward}. You earned it.
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Why it matters + impact */}
+      {(goal.whyItMatters || goal.impactLevel) && (
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            {goal.whyItMatters && (
+              <div className="flex items-start gap-2">
+                <Heart className="h-4 w-4 text-rose-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+                    Why this matters
+                  </p>
+                  <p className="text-sm text-slate-300 mt-0.5">{goal.whyItMatters}</p>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-indigo-400 flex-shrink-0" />
+              <p className="text-sm text-slate-400">
+                <span className="text-slate-500">Impact:</span>{" "}
+                {impactLabel(goal.impactLevel)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Promised reward (while not yet done) */}
+      {goal.status !== "done" && (
+        <Card className="border-rose-500/20 bg-rose-950/10">
+          <CardContent className="pt-4">
+            {goal.reward && !rewardEditing ? (
+              <div className="flex items-start gap-3">
+                <Gift className="h-5 w-5 text-rose-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+                    Your reward when you finish
+                  </p>
+                  <p className="text-sm text-rose-300 font-medium mt-0.5">
+                    {goal.reward}
+                  </p>
+                  {totalTasks > 0 && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      {progress}% there — keep going to unlock it.
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setRewardText(goal.reward ?? "");
+                    setRewardEditing(true);
+                  }}
+                  className="text-slate-600 hover:text-slate-400 text-xs"
+                >
+                  Edit
+                </button>
+              </div>
+            ) : rewardEditing ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Gift className="h-4 w-4 text-rose-400" />
+                  <p className="text-sm font-medium">Set your reward</p>
+                </div>
+                <Input
+                  value={rewardText}
+                  onChange={(e) => setRewardText(e.target.value)}
+                  placeholder="e.g. A nice dinner out to celebrate"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveReward} disabled={isPending} className="flex-1">
+                    Save
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setRewardEditing(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setRewardEditing(true)}
+                className="flex items-center gap-2 w-full text-left"
+              >
+                <Gift className="h-4 w-4 text-slate-600" />
+                <div>
+                  <p className="text-sm text-slate-400">Promise yourself a reward</p>
+                  <p className="text-xs text-slate-600">
+                    &quot;If I achieve this, I get ___.&quot; A reward you look forward
+                    to makes the goal pull you.
+                  </p>
+                </div>
+              </button>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* WOOP details */}

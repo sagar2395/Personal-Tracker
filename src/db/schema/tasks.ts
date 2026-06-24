@@ -22,6 +22,7 @@ export const tasks = sqliteTable(
     isImportant: integer("is_important", { mode: "boolean" })
       .notNull()
       .default(true),
+    impactLevel: integer("impact_level").notNull().default(2),
     effortMins: integer("effort_mins"),
     dueDate: text("due_date"),
     scheduledFor: text("scheduled_for"),

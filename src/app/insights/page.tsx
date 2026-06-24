@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getHabits } from "@/app/actions";
+import { getHabits, getWorkAnalysis } from "@/app/actions";
 import { getDb } from "@/db";
 import { habitLogs } from "@/db/schema/habits";
 import { eq, desc } from "drizzle-orm";
@@ -27,11 +27,13 @@ export default async function InsightsPage() {
     })
   );
 
+  const workAnalysis = await getWorkAnalysis(30);
+
   return (
     <AppShell>
       <div className="mx-auto max-w-lg px-4 py-6 space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">Insights</h1>
-        <InsightsView habitsWithLogs={habitsWithLogs} />
+        <InsightsView habitsWithLogs={habitsWithLogs} workAnalysis={workAnalysis} />
       </div>
     </AppShell>
   );

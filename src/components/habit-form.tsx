@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardTitle, CardContent } from "@/components/ui/card";
 import { createHabit } from "@/app/actions";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { impactLabel } from "@/lib/analysis";
 
 interface Area {
   id: number;
@@ -27,6 +28,9 @@ interface FormData {
   type: HabitType;
   title: string;
   areaId: number;
+  whyItMatters: string;
+  impactLevel: number;
+  milestoneReward: string;
   tinyVersion: string;
   anchor: string;
   cadence: "daily" | "weekdays" | "x-per-week" | "custom";
@@ -38,8 +42,8 @@ interface FormData {
   peakTemptationTime: string;
 }
 
-const STEPS_BUILD = ["Type", "What", "Tiny version", "When", "Grace"];
-const STEPS_LIMIT = ["Type", "What", "Boundaries", "Substitution", "Temptation", "Grace"];
+const STEPS_BUILD = ["Type", "What", "Why & reward", "Tiny version", "When", "Grace"];
+const STEPS_LIMIT = ["Type", "What", "Why & reward", "Boundaries", "Substitution", "Temptation", "Grace"];
 
 export function HabitForm({ areas }: HabitFormProps) {
   const router = useRouter();
@@ -49,6 +53,9 @@ export function HabitForm({ areas }: HabitFormProps) {
     type: "build",
     title: "",
     areaId: areas[0]?.id || 0,
+    whyItMatters: "",
+    impactLevel: 3,
+    milestoneReward: "",
     tinyVersion: "",
     anchor: "",
     cadence: "daily",
@@ -95,20 +102,25 @@ export function HabitForm({ areas }: HabitFormProps) {
         dailyBudgetMins: form.type === "limit" ? form.dailyBudgetMins : undefined,
         peakTemptationTime: form.type === "limit" ? form.peakTemptationTime : undefined,
         substitutionPlan: form.type === "limit" ? form.substitutionPlan : undefined,
+        whyItMatters: form.whyItMatters || undefined,
+        impactLevel: form.impactLevel,
+        milestoneReward: form.milestoneReward || undefined,
       });
       router.push("/habits");
     });
   }
 
+  // Step indices: 0 Type, 1 What, 2 Why&reward are shared. From step 3 on, the
+  // flow diverges by type.
   const canProceed = (() => {
     if (step === 0) return true;
     if (step === 1) return form.title.trim().length > 0;
+    if (step === 2) return true;
     if (form.type === "build") {
-      if (step === 2) return form.tinyVersion.trim().length > 0;
+      if (step === 3) return form.tinyVersion.trim().length > 0;
       return true;
     } else {
-      if (step === 2) return true;
-      if (step === 3) return form.substitutionPlan.trim().length > 0;
+      if (step === 4) return form.substitutionPlan.trim().length > 0;
       return true;
     }
   })();
@@ -217,8 +229,67 @@ export function HabitForm({ areas }: HabitFormProps) {
             </div>
           )}
 
-          {/* Build Step 2: Tiny version */}
-          {form.type === "build" && step === 2 && (
+          {/* Step 2: Why & reward (shared) */}
+          {step === 2 && (
+            <div className="space-y-4">
+              <CardTitle className="text-lg">Why does this matter?</CardTitle>
+              <p className="text-sm text-slate-400">
+                Connecting a habit to a deeper reason and a reward makes it far
+                more likely to stick.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="why">Why it matters</Label>
+                <Textarea
+                  id="why"
+                  value={form.whyItMatters}
+                  onChange={(e) => update("whyItMatters", e.target.value)}
+                  placeholder={
+                    form.type === "build"
+                      ? "e.g. So I have energy to play with my kids"
+                      : "e.g. So I sleep better and feel present"
+                  }
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>How impactful is this on your life?</Label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((lvl) => (
+                    <button
+                      key={lvl}
+                      onClick={() => update("impactLevel", lvl)}
+                      className={`flex-1 rounded-lg border-2 py-2 text-xs font-medium transition-colors ${
+                        form.impactLevel === lvl
+                          ? "border-indigo-500 bg-indigo-950/30 text-indigo-300"
+                          : "border-slate-700 text-slate-500 hover:border-slate-600"
+                      }`}
+                    >
+                      {lvl}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500">
+                  {form.impactLevel} — {impactLabel(form.impactLevel)}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reward">Milestone reward (optional)</Label>
+                <Input
+                  id="reward"
+                  value={form.milestoneReward}
+                  onChange={(e) => update("milestoneReward", e.target.value)}
+                  placeholder="e.g. New running shoes at a 30-day streak"
+                />
+                <p className="text-xs text-slate-500">
+                  Promise yourself something for hitting a streak. We&apos;ll remind
+                  you what you&apos;re working toward.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Build Step 3: Tiny version */}
+          {form.type === "build" && step === 3 && (
             <div className="space-y-4">
               <CardTitle className="text-lg">
                 What&apos;s the tiny version?
@@ -252,8 +323,8 @@ export function HabitForm({ areas }: HabitFormProps) {
             </div>
           )}
 
-          {/* Build Step 3: Cadence + reminder */}
-          {form.type === "build" && step === 3 && (
+          {/* Build Step 4: Cadence + reminder */}
+          {form.type === "build" && step === 4 && (
             <div className="space-y-4">
               <CardTitle className="text-lg">When will you do it?</CardTitle>
               <div className="space-y-2">
@@ -304,8 +375,8 @@ export function HabitForm({ areas }: HabitFormProps) {
             </div>
           )}
 
-          {/* Build Step 4 / Grace */}
-          {form.type === "build" && step === 4 && (
+          {/* Build Step 5 / Grace */}
+          {form.type === "build" && step === 5 && (
             <div className="space-y-4">
               <CardTitle className="text-lg">Forgiveness settings</CardTitle>
               <p className="text-sm text-slate-400">
@@ -333,6 +404,9 @@ export function HabitForm({ areas }: HabitFormProps) {
                   <li>Habit: {form.title}</li>
                   <li>Tiny version: {form.tinyVersion}</li>
                   {form.anchor && <li>Anchor: {form.anchor}</li>}
+                  {form.whyItMatters && <li>Why: {form.whyItMatters}</li>}
+                  <li>Impact: {impactLabel(form.impactLevel)}</li>
+                  {form.milestoneReward && <li>Reward: {form.milestoneReward}</li>}
                   <li>Cadence: {form.cadence}</li>
                   <li>Grace: {form.graceDaysAllowed} day(s)</li>
                 </ul>
@@ -340,8 +414,8 @@ export function HabitForm({ areas }: HabitFormProps) {
             </div>
           )}
 
-          {/* Limit Step 2: Boundaries */}
-          {form.type === "limit" && step === 2 && (
+          {/* Limit Step 3: Boundaries */}
+          {form.type === "limit" && step === 3 && (
             <div className="space-y-4">
               <CardTitle className="text-lg">Set your boundaries</CardTitle>
               <p className="text-sm text-slate-400">
@@ -383,8 +457,8 @@ export function HabitForm({ areas }: HabitFormProps) {
             </div>
           )}
 
-          {/* Limit Step 3: Substitution */}
-          {form.type === "limit" && step === 3 && (
+          {/* Limit Step 4: Substitution */}
+          {form.type === "limit" && step === 4 && (
             <div className="space-y-4">
               <CardTitle className="text-lg">
                 What&apos;s your substitution plan?
@@ -408,8 +482,8 @@ export function HabitForm({ areas }: HabitFormProps) {
             </div>
           )}
 
-          {/* Limit Step 4: Peak temptation */}
-          {form.type === "limit" && step === 4 && (
+          {/* Limit Step 5: Peak temptation */}
+          {form.type === "limit" && step === 5 && (
             <div className="space-y-4">
               <CardTitle className="text-lg">
                 When is temptation strongest?
@@ -430,8 +504,8 @@ export function HabitForm({ areas }: HabitFormProps) {
             </div>
           )}
 
-          {/* Limit Step 5: Grace */}
-          {form.type === "limit" && step === 5 && (
+          {/* Limit Step 6: Grace */}
+          {form.type === "limit" && step === 6 && (
             <div className="space-y-4">
               <CardTitle className="text-lg">Forgiveness settings</CardTitle>
               <p className="text-sm text-slate-400">
@@ -463,6 +537,9 @@ export function HabitForm({ areas }: HabitFormProps) {
                       ? "Quit entirely"
                       : `${form.dailyBudgetMins} min/day`}
                   </li>
+                  {form.whyItMatters && <li>Why: {form.whyItMatters}</li>}
+                  <li>Impact: {impactLabel(form.impactLevel)}</li>
+                  {form.milestoneReward && <li>Reward: {form.milestoneReward}</li>}
                   <li>Plan: {form.substitutionPlan}</li>
                   <li>Peak time: {form.peakTemptationTime}</li>
                   <li>Grace: {form.graceDaysAllowed} day(s)</li>

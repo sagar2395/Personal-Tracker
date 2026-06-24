@@ -11,6 +11,7 @@ import { metrics, metricLogs } from "@/db/schema/metrics";
 import { appUsageLogs, achievements, userMotivation } from "@/db/schema/engagement";
 import { getCurrentUser } from "@/lib/auth";
 import { computeStreak } from "@/lib/streaks";
+import { classifyTask } from "@/lib/analysis";
 import { eq, and, desc, sql, ne, gte, lte, asc, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -185,6 +186,9 @@ export async function createHabit(data: {
   dailyBudgetMins?: number;
   peakTemptationTime?: string;
   substitutionPlan?: string;
+  whyItMatters?: string;
+  impactLevel?: number;
+  milestoneReward?: string;
 }) {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
@@ -212,12 +216,51 @@ export async function createHabit(data: {
       dailyBudgetMins: data.dailyBudgetMins ?? null,
       peakTemptationTime: data.peakTemptationTime ?? null,
       substitutionPlan: data.substitutionPlan ?? null,
+      whyItMatters: data.whyItMatters ?? null,
+      impactLevel: data.impactLevel ?? 3,
+      milestoneReward: data.milestoneReward ?? null,
       sortOrder: (maxSort?.max ?? 0) + 1,
     })
     .run();
 
   revalidatePath("/");
   revalidatePath("/habits");
+  return { success: true };
+}
+
+export async function updateHabit(
+  habitId: number,
+  data: {
+    title?: string;
+    areaId?: number;
+    tinyVersion?: string | null;
+    anchor?: string | null;
+    substitutionPlan?: string | null;
+    dailyBudgetMins?: number | null;
+    whyItMatters?: string | null;
+    impactLevel?: number;
+    milestoneReward?: string | null;
+  }
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+
+  const existing = await db
+    .select()
+    .from(habits)
+    .where(and(eq(habits.id, habitId), eq(habits.userId, user.id)))
+    .get();
+  if (!existing) return { error: "Habit not found" };
+
+  await db.update(habits)
+    .set(data)
+    .where(and(eq(habits.id, habitId), eq(habits.userId, user.id)))
+    .run();
+
+  revalidatePath("/");
+  revalidatePath("/habits");
+  revalidatePath(`/habits/${habitId}`);
   return { success: true };
 }
 
@@ -297,6 +340,9 @@ export async function createGoal(data: {
   measurableTarget?: string;
   deadline?: string;
   status?: GoalStatus;
+  whyItMatters?: string;
+  impactLevel?: number;
+  reward?: string;
 }) {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
@@ -339,12 +385,41 @@ export async function createGoal(data: {
       measurableTarget: data.measurableTarget ?? null,
       deadline: data.deadline ?? null,
       status: data.status ?? "active",
+      whyItMatters: data.whyItMatters ?? null,
+      impactLevel: data.impactLevel ?? 3,
+      reward: data.reward ?? null,
       sortOrder: (maxSort?.max ?? 0) + 1,
     })
     .run();
 
   revalidatePath("/goals");
   revalidatePath("/");
+  return { success: true };
+}
+
+export async function updateGoalReward(goalId: number, reward: string) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+  await db.update(goals)
+    .set({ reward: reward || null })
+    .where(and(eq(goals.id, goalId), eq(goals.userId, user.id)))
+    .run();
+  revalidatePath("/goals");
+  revalidatePath(`/goals/${goalId}`);
+  return { success: true };
+}
+
+export async function claimGoalReward(goalId: number) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+  await db.update(goals)
+    .set({ rewardClaimed: true })
+    .where(and(eq(goals.id, goalId), eq(goals.userId, user.id)))
+    .run();
+  revalidatePath("/goals");
+  revalidatePath(`/goals/${goalId}`);
   return { success: true };
 }
 
@@ -397,6 +472,7 @@ export async function createTask(data: {
   description?: string;
   isUrgent?: boolean;
   isImportant?: boolean;
+  impactLevel?: number;
   effortMins?: number;
   dueDate?: string;
   scheduledFor?: string;
@@ -414,6 +490,7 @@ export async function createTask(data: {
       description: data.description ?? null,
       isUrgent: data.isUrgent ?? false,
       isImportant: data.isImportant ?? true,
+      impactLevel: data.impactLevel ?? 2,
       effortMins: data.effortMins ?? null,
       dueDate: data.dueDate ?? null,
       scheduledFor: data.scheduledFor ?? null,
@@ -1454,6 +1531,7 @@ export async function quickAddInboxTask(title: string) {
       title,
       isUrgent: true,
       isImportant: false,
+      impactLevel: 1,
     })
     .run();
 
@@ -1547,6 +1625,113 @@ export async function getInboxStats() {
     thisWeekAdded: thisWeekAdded?.count ?? 0,
     thisWeekCompleted: thisWeekCompleted?.count ?? 0,
   };
+}
+
+// ── Work analysis (strategic vs reactive) ──
+
+export async function getWorkAnalysis(days: number = 30) {
+  const user = await getCurrentUser();
+  const empty = {
+    strategicDone: 0,
+    reactiveDone: 0,
+    strategicMins: 0,
+    reactiveMins: 0,
+    openStrategic: 0,
+    openReactive: 0,
+    goalLinkedRatio: 0,
+    topImpactDone: [] as { title: string; impactLevel: number; completedAt: string | null }[],
+    habitImpact: [] as { title: string; impactLevel: number; type: string }[],
+  };
+  if (!user) return empty;
+  try {
+    const db = getDb();
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const sinceStr = since.toISOString();
+
+    const allTasks = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.userId, user.id))
+      .all();
+
+    let strategicDone = 0;
+    let reactiveDone = 0;
+    let strategicMins = 0;
+    let reactiveMins = 0;
+    let openStrategic = 0;
+    let openReactive = 0;
+    let goalLinked = 0;
+    const doneInWindow: typeof allTasks = [];
+
+    for (const t of allTasks as typeof tasks.$inferSelect[]) {
+      const kind = classifyTask({
+        goalId: t.goalId,
+        isImportant: t.isImportant,
+        isUrgent: t.isUrgent,
+        impactLevel: t.impactLevel ?? 2,
+      });
+      const isDone = t.status === "done";
+      const inWindow = isDone && t.completedAt != null && t.completedAt >= sinceStr;
+      const isOpen = t.status === "todo" || t.status === "in_progress";
+
+      if (inWindow) {
+        doneInWindow.push(t);
+        if (t.goalId != null) goalLinked++;
+        if (kind === "strategic") {
+          strategicDone++;
+          strategicMins += t.effortMins ?? 0;
+        } else {
+          reactiveDone++;
+          reactiveMins += t.effortMins ?? 0;
+        }
+      }
+      if (isOpen) {
+        if (kind === "strategic") openStrategic++;
+        else openReactive++;
+      }
+    }
+
+    const topImpactDone = [...doneInWindow]
+      .sort((a, b) => (b.impactLevel ?? 0) - (a.impactLevel ?? 0))
+      .slice(0, 5)
+      .map((t) => ({
+        title: t.title,
+        impactLevel: t.impactLevel ?? 2,
+        completedAt: t.completedAt,
+      }));
+
+    const allHabits = await db
+      .select()
+      .from(habits)
+      .where(and(eq(habits.userId, user.id), eq(habits.archived, false)))
+      .all();
+
+    const habitImpact = (allHabits as typeof habits.$inferSelect[])
+      .map((h) => ({
+        title: h.title,
+        impactLevel: h.impactLevel ?? 3,
+        type: h.type,
+      }))
+      .sort((a, b) => b.impactLevel - a.impactLevel);
+
+    const totalDone = strategicDone + reactiveDone;
+    const goalLinkedRatio = totalDone > 0 ? goalLinked / totalDone : 0;
+
+    return {
+      strategicDone,
+      reactiveDone,
+      strategicMins,
+      reactiveMins,
+      openStrategic,
+      openReactive,
+      goalLinkedRatio,
+      topImpactDone,
+      habitImpact,
+    };
+  } catch {
+    return empty;
+  }
 }
 
 // ── Data export ──

@@ -16,6 +16,12 @@ export const goals = sqliteTable("goals", {
   obstacle: text("obstacle"),
   plan: text("plan"),
   measurableTarget: text("measurable_target"),
+  whyItMatters: text("why_it_matters"),
+  impactLevel: integer("impact_level").notNull().default(3),
+  reward: text("reward"),
+  rewardClaimed: integer("reward_claimed", { mode: "boolean" })
+    .notNull()
+    .default(false),
   deadline: text("deadline"),
   status: text("status", {
     enum: ["active", "someday", "done", "dropped"],

@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { createGoal } from "@/app/actions";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { impactLabel } from "@/lib/analysis";
 
 interface Area {
   id: number;
@@ -28,12 +29,15 @@ interface FormData {
   outcome: string;
   obstacle: string;
   plan: string;
+  whyItMatters: string;
+  impactLevel: number;
+  reward: string;
   measurableTarget: string;
   deadline: string;
   status: "active" | "someday";
 }
 
-const STEPS = ["What", "Wish & Outcome", "Obstacle & Plan", "Target & Deadline"];
+const STEPS = ["What", "Wish & Outcome", "Obstacle & Plan", "Why & Reward", "Target & Deadline"];
 
 export function GoalForm({ areas }: GoalFormProps) {
   const router = useRouter();
@@ -47,6 +51,9 @@ export function GoalForm({ areas }: GoalFormProps) {
     outcome: "",
     obstacle: "",
     plan: "",
+    whyItMatters: "",
+    impactLevel: 3,
+    reward: "",
     measurableTarget: "",
     deadline: "",
     status: "active",
@@ -81,6 +88,9 @@ export function GoalForm({ areas }: GoalFormProps) {
         outcome: form.outcome || undefined,
         obstacle: form.obstacle || undefined,
         plan: form.plan || undefined,
+        whyItMatters: form.whyItMatters || undefined,
+        impactLevel: form.impactLevel,
+        reward: form.reward || undefined,
         measurableTarget: form.measurableTarget || undefined,
         deadline: form.deadline || undefined,
         status: form.status,
@@ -241,6 +251,60 @@ export function GoalForm({ areas }: GoalFormProps) {
 
           {step === 3 && (
             <div className="space-y-4">
+              <CardTitle className="text-lg">Why & reward</CardTitle>
+              <p className="text-sm text-slate-400">
+                A clear reason and a self-promised reward make a goal far more
+                motivating. You&apos;ll claim the reward when you complete it.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="why">Why does this matter to you?</Label>
+                <Textarea
+                  id="why"
+                  value={form.whyItMatters}
+                  onChange={(e) => update("whyItMatters", e.target.value)}
+                  placeholder="e.g. This frees up our weekends and removes a constant worry"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>How impactful is reaching this goal?</Label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((lvl) => (
+                    <button
+                      key={lvl}
+                      onClick={() => update("impactLevel", lvl)}
+                      className={`flex-1 rounded-lg border-2 py-2 text-xs font-medium transition-colors ${
+                        form.impactLevel === lvl
+                          ? "border-indigo-500 bg-indigo-950/30 text-indigo-300"
+                          : "border-slate-700 text-slate-500 hover:border-slate-600"
+                      }`}
+                    >
+                      {lvl}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500">
+                  {form.impactLevel} — {impactLabel(form.impactLevel)}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reward">Your reward for completing this</Label>
+                <Input
+                  id="reward"
+                  value={form.reward}
+                  onChange={(e) => update("reward", e.target.value)}
+                  placeholder="e.g. A weekend trip to celebrate"
+                />
+                <p className="text-xs text-slate-500">
+                  &quot;If I achieve this, I get ___.&quot; Make it something you
+                  genuinely look forward to.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-4">
               <CardTitle className="text-lg">Make it measurable</CardTitle>
               <div className="space-y-2">
                 <Label htmlFor="target">Measurable target (optional)</Label>
@@ -270,6 +334,9 @@ export function GoalForm({ areas }: GoalFormProps) {
                   {form.outcome && <li>Outcome: {form.outcome}</li>}
                   {form.obstacle && <li>Obstacle: {form.obstacle}</li>}
                   {form.plan && <li>Plan: {form.plan}</li>}
+                  {form.whyItMatters && <li>Why: {form.whyItMatters}</li>}
+                  <li>Impact: {impactLabel(form.impactLevel)}</li>
+                  {form.reward && <li>Reward: {form.reward}</li>}
                   {form.measurableTarget && <li>Target: {form.measurableTarget}</li>}
                   {form.deadline && <li>Deadline: {form.deadline}</li>}
                   <li>Status: {form.status}</li>

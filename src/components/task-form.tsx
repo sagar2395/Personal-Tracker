@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { createTask } from "@/app/actions";
 import { ArrowLeft, Check } from "lucide-react";
+import { impactLabel } from "@/lib/analysis";
 
 interface Area {
   id: number;
@@ -40,6 +41,7 @@ export function TaskForm({
     goalId: defaultGoalId ?? 0,
     isUrgent: false,
     isImportant: true,
+    impactLevel: 2,
     effortMins: "",
     dueDate: "",
     scheduledFor: "",
@@ -59,6 +61,7 @@ export function TaskForm({
         description: form.description || undefined,
         isUrgent: form.isUrgent,
         isImportant: form.isImportant,
+        impactLevel: form.impactLevel,
         effortMins: form.effortMins ? parseInt(form.effortMins, 10) : undefined,
         dueDate: form.dueDate || undefined,
         scheduledFor: form.scheduledFor || undefined,
@@ -181,6 +184,29 @@ export function TaskForm({
           <p className={`text-xs font-medium ${quadrantColor}`}>
             Quadrant: {quadrant}
           </p>
+
+          <div className="space-y-2 pt-2 border-t border-slate-800">
+            <Label>Impact — how much does this really move things?</Label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((lvl) => (
+                <button
+                  key={lvl}
+                  onClick={() => update("impactLevel", lvl)}
+                  className={`flex-1 rounded-lg border-2 py-2 text-xs font-medium transition-colors ${
+                    form.impactLevel === lvl
+                      ? "border-indigo-500 bg-indigo-950/30 text-indigo-300"
+                      : "border-slate-700 text-slate-500 hover:border-slate-600"
+                  }`}
+                >
+                  {lvl}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-500">
+              {form.impactLevel} — {impactLabel(form.impactLevel)}. Link a goal
+              above for work that builds toward something bigger.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

@@ -3,11 +3,15 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Flame, Clock, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Flame, Clock, Trash2, Pencil, Heart, Gift, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
-import { deleteHabit } from "@/app/actions";
+import { useState, useTransition } from "react";
+import { deleteHabit, updateHabit } from "@/app/actions";
 import { cn } from "@/lib/utils";
+import { impactLabel } from "@/lib/analysis";
 import type { StreakResult } from "@/lib/streaks";
 
 interface HabitDetailProps {
@@ -22,6 +26,9 @@ interface HabitDetailProps {
     substitutionPlan: string | null;
     dailyBudgetMins: number | null;
     peakTemptationTime: string | null;
+    whyItMatters: string | null;
+    impactLevel: number;
+    milestoneReward: string | null;
     createdAt: string;
   };
   logs: {
@@ -33,6 +40,8 @@ interface HabitDetailProps {
   }[];
   streak: StreakResult;
 }
+
+const STREAK_MILESTONES = [7, 14, 30, 60, 100];
 
 function getStatusColor(status: string, type: string): string {
   if (type === "build") {
@@ -78,11 +87,40 @@ export function HabitDetail({ habit, logs, streak }: HabitDetailProps) {
   const isBuild = habit.type === "build";
   const calendarDays = generateCalendarDays(logs);
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [edit, setEdit] = useState({
+    title: habit.title,
+    whyItMatters: habit.whyItMatters ?? "",
+    impactLevel: habit.impactLevel ?? 3,
+    milestoneReward: habit.milestoneReward ?? "",
+    tinyVersion: habit.tinyVersion ?? "",
+    substitutionPlan: habit.substitutionPlan ?? "",
+  });
+
+  const nextMilestone = STREAK_MILESTONES.find((m) => m > streak.currentStreak);
+  const daysToMilestone = nextMilestone ? nextMilestone - streak.currentStreak : null;
+
   function handleDelete() {
     if (!confirm("Archive this habit? It won't appear on Today anymore.")) return;
     startTransition(async () => {
       await deleteHabit(habit.id);
       router.push("/habits");
+    });
+  }
+
+  function handleSaveEdit() {
+    if (!edit.title.trim()) return;
+    startTransition(async () => {
+      await updateHabit(habit.id, {
+        title: edit.title.trim(),
+        whyItMatters: edit.whyItMatters.trim() || null,
+        impactLevel: edit.impactLevel,
+        milestoneReward: edit.milestoneReward.trim() || null,
+        tinyVersion: isBuild ? edit.tinyVersion.trim() || null : undefined,
+        substitutionPlan: !isBuild ? edit.substitutionPlan.trim() || null : undefined,
+      });
+      setIsEditing(false);
+      router.refresh();
     });
   }
 
@@ -104,7 +142,133 @@ export function HabitDetail({ habit, logs, streak }: HabitDetailProps) {
           </div>
           <p className="text-xs text-slate-500 capitalize">{habit.cadence}</p>
         </div>
+        {!isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="text-slate-500 hover:text-slate-300 touch-manipulation"
+            title="Edit habit"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
       </header>
+
+      {/* Inline editor */}
+      {isEditing && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Edit habit</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Name</Label>
+              <Input
+                id="edit-title"
+                value={edit.title}
+                onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                autoFocus
+              />
+            </div>
+            {isBuild && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-tiny">Tiny version</Label>
+                <Input
+                  id="edit-tiny"
+                  value={edit.tinyVersion}
+                  onChange={(e) => setEdit({ ...edit, tinyVersion: e.target.value })}
+                  placeholder="The minimum that still counts"
+                />
+              </div>
+            )}
+            {!isBuild && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-sub">Substitution plan</Label>
+                <Textarea
+                  id="edit-sub"
+                  value={edit.substitutionPlan}
+                  onChange={(e) => setEdit({ ...edit, substitutionPlan: e.target.value })}
+                  placeholder="When the urge hits, I will..."
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="edit-why">Why it matters</Label>
+              <Textarea
+                id="edit-why"
+                value={edit.whyItMatters}
+                onChange={(e) => setEdit({ ...edit, whyItMatters: e.target.value })}
+                placeholder="Your deeper reason for this habit"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Impact on your life</Label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((lvl) => (
+                  <button
+                    key={lvl}
+                    onClick={() => setEdit({ ...edit, impactLevel: lvl })}
+                    className={cn(
+                      "flex-1 rounded-lg border-2 py-2 text-xs font-medium transition-colors",
+                      edit.impactLevel === lvl
+                        ? "border-indigo-500 bg-indigo-950/30 text-indigo-300"
+                        : "border-slate-700 text-slate-500 hover:border-slate-600"
+                    )}
+                  >
+                    {lvl}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500">{impactLabel(edit.impactLevel)}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-reward">Milestone reward</Label>
+              <Input
+                id="edit-reward"
+                value={edit.milestoneReward}
+                onChange={(e) => setEdit({ ...edit, milestoneReward: e.target.value })}
+                placeholder="e.g. New gear at a 30-day streak"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleSaveEdit} disabled={!edit.title.trim() || isPending} className="flex-1">
+                Save
+              </Button>
+              <Button variant="ghost" onClick={() => setIsEditing(false)} className="flex-1">
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Milestone reward progress */}
+      {!isEditing && habit.milestoneReward && nextMilestone && (
+        <Card className="border-rose-500/20 bg-rose-950/10">
+          <CardContent className="pt-4">
+            <div className="flex items-start gap-3">
+              <Gift className="h-5 w-5 text-rose-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-rose-300">
+                  {habit.milestoneReward}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {daysToMilestone === 0
+                    ? `You've hit ${nextMilestone} days — claim your reward!`
+                    : `${daysToMilestone} day${daysToMilestone === 1 ? "" : "s"} of streak to go until your ${nextMilestone}-day reward.`}
+                </p>
+                <div className="mt-2 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-rose-500 transition-all"
+                    style={{
+                      width: `${Math.min((streak.currentStreak / nextMilestone) * 100, 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Streak stats */}
       <div className="grid grid-cols-3 gap-3">
@@ -207,6 +371,19 @@ export function HabitDetail({ habit, logs, streak }: HabitDetailProps) {
           <CardTitle className="text-sm">Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-slate-400">
+          {habit.whyItMatters && (
+            <p className="flex items-start gap-1.5">
+              <Heart className="h-3.5 w-3.5 text-rose-400 mt-0.5 flex-shrink-0" />
+              <span>
+                <span className="text-slate-500">Why:</span> {habit.whyItMatters}
+              </span>
+            </p>
+          )}
+          <p className="flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+            <span className="text-slate-500">Impact:</span>{" "}
+            {impactLabel(habit.impactLevel)}
+          </p>
           {isBuild && habit.tinyVersion && (
             <p>
               <span className="text-slate-500">Tiny version:</span>{" "}

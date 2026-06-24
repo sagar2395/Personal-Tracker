@@ -79,7 +79,7 @@ export function HabitCard({ data }: HabitCardProps) {
   return (
     <Card
       className={cn(
-        "relative transition-all",
+        "relative transition-all duration-150",
         isLogged && isPositiveLog && "border-emerald-800/50",
         needsRecovery && !isLogged && "border-amber-700/50 bg-amber-950/10"
       )}

@@ -349,6 +349,7 @@ export function TodayView({
                 <button
                   onClick={() => task.status !== "done" && handleMITDone(task.id)}
                   disabled={isPending || task.status === "done"}
+                  className="touch-manipulation active:scale-90 transition-transform duration-150"
                 >
                   {task.status === "done" ? (
                     <CheckCircle2 className="h-5 w-5 text-emerald-500" />

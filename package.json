@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:cf": "npx @opennextjs/cloudflare build",
-    "deploy": "npm run build:cf && wrangler deploy",
+    "deploy": "npm run build:cf && npx wrangler deploy",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",

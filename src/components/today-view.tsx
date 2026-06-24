@@ -10,6 +10,7 @@ import {
   updateTaskStatus,
   captureWin,
   saveWhyStatement,
+  quickAddInboxTask,
 } from "@/app/actions";
 import {
   Star,
@@ -25,6 +26,8 @@ import {
   Award,
   Sparkles,
   X,
+  Inbox,
+  AlertTriangle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { StreakResult } from "@/lib/streaks";
@@ -87,6 +90,19 @@ interface UnlockedAchievement {
   unlockedAt: string;
 }
 
+interface InboxTask {
+  id: number;
+  title: string;
+  status: string;
+  createdAt: string;
+}
+
+interface InboxStats {
+  openCount: number;
+  thisWeekAdded: number;
+  thisWeekCompleted: number;
+}
+
 interface TodayViewProps {
   habits: HabitWithContext[];
   mits?: MITTask[];
@@ -98,6 +114,8 @@ interface TodayViewProps {
   welcomeBack?: string | null;
   unlockedAchievements?: UnlockedAchievement[];
   newlyUnlocked?: string[];
+  inboxTasks?: InboxTask[];
+  inboxStats?: InboxStats;
 }
 
 export function TodayView({
@@ -111,6 +129,8 @@ export function TodayView({
   welcomeBack,
   unlockedAchievements = [],
   newlyUnlocked = [],
+  inboxTasks = [],
+  inboxStats,
 }: TodayViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -119,6 +139,7 @@ export function TodayView({
   const [showWhyEditor, setShowWhyEditor] = useState(false);
   const [whyText, setWhyText] = useState(whyStatement || "");
   const [showNewBadge, setShowNewBadge] = useState(newlyUnlocked.length > 0);
+  const [inboxText, setInboxText] = useState("");
 
   const buildHabits = habits.filter((h) => h.habit.type === "build");
   const limitHabits = habits.filter((h) => h.habit.type === "limit");
@@ -159,6 +180,22 @@ export function TodayView({
     startTransition(async () => {
       await saveWhyStatement(whyText.trim());
       setShowWhyEditor(false);
+      router.refresh();
+    });
+  }
+
+  function handleInboxAdd() {
+    if (!inboxText.trim()) return;
+    startTransition(async () => {
+      await quickAddInboxTask(inboxText.trim());
+      setInboxText("");
+      router.refresh();
+    });
+  }
+
+  function handleInboxDone(taskId: number) {
+    startTransition(async () => {
+      await updateTaskStatus(taskId, "done");
       router.refresh();
     });
   }
@@ -377,6 +414,75 @@ export function TodayView({
           ))}
         </section>
       )}
+
+      {/* Inbox — ad-hoc tasks */}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Inbox className="h-4 w-4 text-slate-400" />
+            <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+              Inbox
+            </h2>
+            {inboxTasks.length > 0 && (
+              <span className="text-xs text-slate-600">{inboxTasks.length}</span>
+            )}
+          </div>
+        </div>
+
+        <Card className="p-3">
+          <div className="flex gap-2">
+            <Input
+              value={inboxText}
+              onChange={(e) => setInboxText(e.target.value)}
+              placeholder="Quick task — what needs doing?"
+              onKeyDown={(e) => e.key === "Enter" && handleInboxAdd()}
+            />
+            <Button
+              onClick={handleInboxAdd}
+              disabled={!inboxText.trim() || isPending}
+              className="flex-shrink-0"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        </Card>
+
+        {inboxStats && inboxStats.openCount >= 5 && (
+          <div className="flex items-start gap-2 px-1">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-amber-400/80">
+              {inboxStats.openCount} inbox items piling up.
+              {inboxStats.thisWeekAdded > inboxStats.thisWeekCompleted
+                ? " You're adding faster than finishing — try to clear or plan some of these."
+                : " Nice clearance rate this week!"}
+            </p>
+          </div>
+        )}
+
+        {inboxTasks.length > 0 && (
+          <div className="space-y-1">
+            {inboxTasks.slice(0, 8).map((task) => (
+              <Card key={task.id} className="p-2.5">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleInboxDone(task.id)}
+                    disabled={isPending}
+                    className="touch-manipulation active:scale-90 transition-transform duration-150"
+                  >
+                    <Circle className="h-4 w-4 text-slate-600 hover:text-indigo-400" />
+                  </button>
+                  <span className="text-sm flex-1 truncate">{task.title}</span>
+                </div>
+              </Card>
+            ))}
+            {inboxTasks.length > 8 && (
+              <p className="text-[10px] text-slate-600 text-center pt-1">
+                +{inboxTasks.length - 8} more in backlog
+              </p>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* Build habits */}
       {buildHabits.length > 0 && (

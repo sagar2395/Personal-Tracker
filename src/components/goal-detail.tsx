@@ -74,6 +74,13 @@ export function GoalDetail({ goal, tasks, area, habits }: GoalDetailProps) {
     });
   }
 
+  function handleTaskUndo(taskId: number) {
+    startTransition(async () => {
+      await updateTaskStatus(taskId, "todo");
+      router.refresh();
+    });
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex items-center gap-3">
@@ -192,9 +199,9 @@ export function GoalDetail({ goal, tasks, area, habits }: GoalDetailProps) {
                   className="flex items-center gap-2 text-sm"
                 >
                   <button
-                    onClick={() => task.status !== "done" && handleTaskDone(task.id)}
-                    disabled={isPending || task.status === "done"}
-                    className="flex-shrink-0"
+                    onClick={() => task.status === "done" ? handleTaskUndo(task.id) : handleTaskDone(task.id)}
+                    disabled={isPending}
+                    className="flex-shrink-0 touch-manipulation active:scale-90 transition-transform duration-150"
                   >
                     {task.status === "done" ? (
                       <CheckCircle2 className="h-4 w-4 text-emerald-500" />

@@ -6,7 +6,6 @@ import { Card } from "@/components/ui/card";
 import {
   ClipboardCheck,
   BarChart3,
-  Wallet,
   Settings,
   LogOut,
   Award,
@@ -33,13 +32,6 @@ const menuItems = [
     label: "Reviews",
     description: "Daily check-in & weekly review",
     icon: ClipboardCheck,
-    phase: "",
-  },
-  {
-    href: "/finance",
-    label: "Finance",
-    description: "Allocation & investment tracking",
-    icon: Wallet,
     phase: "",
   },
   {

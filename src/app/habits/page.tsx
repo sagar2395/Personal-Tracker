@@ -13,8 +13,16 @@ export default async function HabitsPage() {
   const [habits, areas] = await Promise.all([getHabits(), getAreas()]);
   const areaMap = new Map(areas.map((a: typeof areas[number]) => [a.id, a]));
 
-  const buildHabits = habits.filter((h: typeof habits[number]) => h.type === "build");
-  const limitHabits = habits.filter((h: typeof habits[number]) => h.type === "limit");
+  const habitsByArea = new Map<number, typeof habits>();
+  for (const habit of habits) {
+    const list = habitsByArea.get(habit.areaId) || [];
+    list.push(habit);
+    habitsByArea.set(habit.areaId, list);
+  }
+
+  const sortedAreaIds = areas
+    .filter((a: typeof areas[number]) => habitsByArea.has(a.id))
+    .map((a: typeof areas[number]) => a.id);
 
   return (
     <AppShell>
@@ -23,7 +31,7 @@ export default async function HabitsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Habits</h1>
           <Link
             href="/habits/new"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-600 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-600 active:bg-indigo-700 transition-all duration-150 active:scale-[0.97] touch-manipulation"
           >
             <Plus className="h-4 w-4" />
             New habit
@@ -39,68 +47,58 @@ export default async function HabitsPage() {
           </div>
         )}
 
-        {buildHabits.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Build ({buildHabits.length})
-            </h2>
-            {buildHabits.map((habit: typeof buildHabits[number]) => {
-              const area = areaMap.get(habit.areaId) as typeof areas[number] | undefined;
-              return (
+        {sortedAreaIds.map((areaId: number) => {
+          const area = areaMap.get(areaId) as typeof areas[number] | undefined;
+          const areaHabits = habitsByArea.get(areaId) || [];
+          const buildHabits = areaHabits.filter((h: typeof areaHabits[number]) => h.type === "build");
+          const limitHabits = areaHabits.filter((h: typeof areaHabits[number]) => h.type === "limit");
+
+          return (
+            <section key={areaId} className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: area?.color || "#6366f1" }}
+                />
+                <h2 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                  {area?.name || "Uncategorized"} ({areaHabits.length})
+                </h2>
+              </div>
+
+              {buildHabits.map((habit: typeof buildHabits[number]) => (
                 <Link
                   key={habit.id}
                   href={`/habits/${habit.id}`}
-                  className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-3 hover:border-slate-700 transition-colors"
+                  className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-3 hover:border-slate-700 active:bg-slate-800/80 transition-all duration-150 touch-manipulation"
                 >
-                  <div
-                    className="h-2 w-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: area?.color || "#6366f1" }}
-                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{habit.title}</p>
-                    <p className="text-xs text-slate-500">
-                      {habit.cadence} · {area?.name || "No area"}
-                    </p>
+                    <p className="text-xs text-slate-500">{habit.cadence}</p>
                   </div>
                   <Badge variant="build" className="text-[10px]">Build</Badge>
                 </Link>
-              );
-            })}
-          </section>
-        )}
+              ))}
 
-        {limitHabits.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Limit ({limitHabits.length})
-            </h2>
-            {limitHabits.map((habit: typeof limitHabits[number]) => {
-              const area = areaMap.get(habit.areaId) as typeof areas[number] | undefined;
-              return (
+              {limitHabits.map((habit: typeof limitHabits[number]) => (
                 <Link
                   key={habit.id}
                   href={`/habits/${habit.id}`}
-                  className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-3 hover:border-slate-700 transition-colors"
+                  className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-3 hover:border-slate-700 active:bg-slate-800/80 transition-all duration-150 touch-manipulation"
                 >
-                  <div
-                    className="h-2 w-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: area?.color || "#6366f1" }}
-                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{habit.title}</p>
                     <p className="text-xs text-slate-500">
                       {habit.dailyBudgetMins === 0
                         ? "Quit entirely"
-                        : `${habit.dailyBudgetMins} min/day`}{" "}
-                      · {area?.name || "No area"}
+                        : `${habit.dailyBudgetMins} min/day`}
                     </p>
                   </div>
                   <Badge variant="limit" className="text-[10px]">Limit</Badge>
                 </Link>
-              );
-            })}
-          </section>
-        )}
+              ))}
+            </section>
+          );
+        })}
       </div>
     </AppShell>
   );

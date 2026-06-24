@@ -20,6 +20,24 @@ export default async function GoalsPage() {
 
   const areaMap = new Map(areas.map((a: typeof areas[number]) => [a.id, a]));
 
+  function groupByArea(goalList: typeof activeGoals) {
+    const grouped = new Map<number, typeof goalList>();
+    for (const goal of goalList) {
+      const list = grouped.get(goal.areaId) || [];
+      list.push(goal);
+      grouped.set(goal.areaId, list);
+    }
+    return areas
+      .filter((a: typeof areas[number]) => grouped.has(a.id))
+      .map((a: typeof areas[number]) => ({
+        area: a,
+        goals: grouped.get(a.id)!,
+      }));
+  }
+
+  const activeByArea = groupByArea(activeGoals);
+  const somedayByArea = groupByArea(somedayGoals);
+
   return (
     <AppShell>
       <div className="mx-auto max-w-lg px-4 py-6 space-y-6">
@@ -27,7 +45,7 @@ export default async function GoalsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Goals & Tasks</h1>
           <Link
             href="/goals/new"
-            className="inline-flex items-center gap-1 rounded-lg bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-600 transition-colors"
+            className="inline-flex items-center gap-1 rounded-lg bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-600 active:bg-indigo-700 transition-all duration-150 active:scale-[0.97] touch-manipulation"
           >
             <Plus className="h-4 w-4" />
             Goal
@@ -44,35 +62,33 @@ export default async function GoalsPage() {
           </Card>
         )}
 
-        {activeGoals.length > 0 && (
-          <section>
-            <h2 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+        {activeByArea.length > 0 && (
+          <section className="space-y-4">
+            <h2 className="text-xs font-medium text-slate-500 uppercase tracking-wider">
               Active ({activeGoals.length})
             </h2>
-            <div className="space-y-2">
-              {activeGoals.map((goal: typeof activeGoals[number]) => {
-                const area = areaMap.get(goal.areaId) as typeof areas[number] | undefined;
-                return (
+            {activeByArea.map(({ area, goals }: { area: typeof areas[number]; goals: typeof activeGoals }) => (
+              <div key={area.id} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: area.color }}
+                  />
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    {area.name}
+                  </h3>
+                </div>
+                {goals.map((goal: typeof goals[number]) => (
                   <Link key={goal.id} href={`/goals/${goal.id}`}>
-                    <Card className="p-3 hover:border-slate-600 transition-colors">
+                    <Card className="p-3 hover:border-slate-600 active:bg-slate-800/80 transition-all duration-150 touch-manipulation">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{goal.title}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            {area && (
-                              <span
-                                className="text-[10px] px-1.5 py-0.5 rounded"
-                                style={{ backgroundColor: area.color + "20", color: area.color }}
-                              >
-                                {area.name}
-                              </span>
-                            )}
-                            {goal.deadline && (
-                              <span className="text-[10px] text-slate-500">
-                                Due {goal.deadline}
-                              </span>
-                            )}
-                          </div>
+                          {goal.deadline && (
+                            <span className="text-[10px] text-slate-500">
+                              Due {goal.deadline}
+                            </span>
+                          )}
                         </div>
                         <Badge variant="build" className="text-[10px] ml-2">
                           active
@@ -80,31 +96,34 @@ export default async function GoalsPage() {
                       </div>
                     </Card>
                   </Link>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            ))}
           </section>
         )}
 
-        {somedayGoals.length > 0 && (
-          <section>
-            <h2 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+        {somedayByArea.length > 0 && (
+          <section className="space-y-4">
+            <h2 className="text-xs font-medium text-slate-500 uppercase tracking-wider">
               Someday ({somedayGoals.length})
             </h2>
-            <div className="space-y-2">
-              {somedayGoals.map((goal: typeof somedayGoals[number]) => {
-                const area = areaMap.get(goal.areaId) as typeof areas[number] | undefined;
-                return (
+            {somedayByArea.map(({ area, goals }: { area: typeof areas[number]; goals: typeof somedayGoals }) => (
+              <div key={area.id} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="h-2.5 w-2.5 rounded-full opacity-60"
+                    style={{ backgroundColor: area.color }}
+                  />
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    {area.name}
+                  </h3>
+                </div>
+                {goals.map((goal: typeof goals[number]) => (
                   <Link key={goal.id} href={`/goals/${goal.id}`}>
-                    <Card className="p-3 hover:border-slate-600 transition-colors opacity-60">
+                    <Card className="p-3 hover:border-slate-600 transition-all duration-150 opacity-60 touch-manipulation">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{goal.title}</p>
-                          {area && (
-                            <span className="text-[10px] text-slate-500">
-                              {area.name}
-                            </span>
-                          )}
                         </div>
                         <Badge variant="muted" className="text-[10px] ml-2">
                           someday
@@ -112,9 +131,9 @@ export default async function GoalsPage() {
                       </div>
                     </Card>
                   </Link>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            ))}
           </section>
         )}
 

@@ -62,6 +62,13 @@ export function TaskBacklog({ tasks, areas, goals }: TaskBacklogProps) {
     });
   }
 
+  function handleUndo(taskId: number) {
+    startTransition(async () => {
+      await updateTaskStatus(taskId, "todo");
+      router.refresh();
+    });
+  }
+
   function handleToggleMIT(taskId: number) {
     startTransition(async () => {
       await toggleMIT(taskId);
@@ -180,7 +187,14 @@ export function TaskBacklog({ tasks, areas, goals }: TaskBacklogProps) {
           <div className="space-y-1">
             {doneTasks.slice(0, 10).map((task) => (
               <div key={task.id} className="flex items-center gap-2 text-sm px-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+                <button
+                  onClick={() => handleUndo(task.id)}
+                  disabled={isPending}
+                  className="flex-shrink-0 touch-manipulation active:scale-90 transition-transform duration-150"
+                  title="Undo"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 hover:text-amber-400" />
+                </button>
                 <span className="line-through text-slate-600 truncate">{task.title}</span>
               </div>
             ))}

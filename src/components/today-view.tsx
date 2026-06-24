@@ -137,6 +137,13 @@ export function TodayView({
     });
   }
 
+  function handleMITUndo(taskId: number) {
+    startTransition(async () => {
+      await updateTaskStatus(taskId, "todo");
+      router.refresh();
+    });
+  }
+
   function handleWinSubmit() {
     if (!winText.trim()) return;
     startTransition(async () => {
@@ -347,8 +354,8 @@ export function TodayView({
             <Card key={task.id} className="p-3">
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => task.status !== "done" && handleMITDone(task.id)}
-                  disabled={isPending || task.status === "done"}
+                  onClick={() => task.status === "done" ? handleMITUndo(task.id) : handleMITDone(task.id)}
+                  disabled={isPending}
                   className="touch-manipulation active:scale-90 transition-transform duration-150"
                 >
                   {task.status === "done" ? (

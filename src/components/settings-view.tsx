@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { updateArea, exportAllData } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Download } from "lucide-react";
+import { Download, Bell, BellOff } from "lucide-react";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 interface Area {
   id: number;
@@ -176,26 +177,7 @@ export function SettingsView({ areas, user }: SettingsViewProps) {
       </section>
 
       {/* Notification Preferences */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-          Notifications
-        </h2>
-        <Card className="p-4">
-          <p className="text-sm text-slate-500">
-            Push notifications require a deployed environment with VAPID keys
-            configured. Notification preferences will be available once the app
-            is deployed.
-          </p>
-          <div className="mt-3 space-y-2">
-            <NotifToggle label="Morning habit reminders" />
-            <NotifToggle label="Evening check-in prompt" />
-            <NotifToggle label="Never-miss-twice nudge" />
-            <NotifToggle label="Pre-temptation alert" />
-            <NotifToggle label="Deadline approaching" />
-            <NotifToggle label="Weekly review prompt" />
-          </div>
-        </Card>
-      </section>
+      <NotificationSection />
 
       {/* Data */}
       <section className="space-y-3">
@@ -234,26 +216,81 @@ export function SettingsView({ areas, user }: SettingsViewProps) {
   );
 }
 
-function NotifToggle({ label }: { label: string }) {
-  const [enabled, setEnabled] = useState(true);
+function NotificationSection() {
+  const { state, error, subscribe, unsubscribe } = usePushNotifications();
 
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-slate-300">{label}</span>
-      <button
-        onClick={() => setEnabled(!enabled)}
-        className={cn(
-          "relative h-5 w-9 rounded-full transition-colors",
-          enabled ? "bg-indigo-500" : "bg-slate-700"
+    <section className="space-y-3">
+      <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+        Notifications
+      </h2>
+      <Card className="p-4 space-y-3">
+        {state === "unsupported" && (
+          <p className="text-sm text-slate-500">
+            Push notifications are not supported in this browser. Try using
+            Chrome or Edge on desktop/Android, or add the app to your home
+            screen on iOS.
+          </p>
         )}
-      >
-        <div
-          className={cn(
-            "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
-            enabled ? "left-[18px]" : "left-0.5"
-          )}
-        />
-      </button>
-    </div>
+
+        {state === "denied" && (
+          <p className="text-sm text-red-400">
+            Notification permission was denied. Please enable notifications in
+            your browser settings and reload the page.
+          </p>
+        )}
+
+        {state === "loading" && (
+          <p className="text-sm text-slate-500">Checking notification status...</p>
+        )}
+
+        {state === "error" && (
+          <div className="space-y-2">
+            <p className="text-sm text-red-400">
+              {error || "Something went wrong with notifications."}
+            </p>
+            <Button variant="secondary" size="sm" onClick={subscribe}>
+              Try again
+            </Button>
+          </div>
+        )}
+
+        {state === "unsubscribed" && (
+          <div className="space-y-2">
+            <p className="text-sm text-slate-400">
+              Get reminders for your habits, deadlines, and evening check-ins.
+            </p>
+            <Button onClick={subscribe} className="gap-2">
+              <Bell className="h-4 w-4" />
+              Enable push notifications
+            </Button>
+          </div>
+        )}
+
+        {state === "subscribed" && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-green-400" />
+              <span className="text-sm text-green-400">
+                Push notifications are enabled
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">
+              You&apos;ll receive morning habit reminders, evening check-ins,
+              never-miss-twice nudges, and deadline alerts.
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={unsubscribe}
+              className="text-slate-500 gap-2"
+            >
+              <BellOff className="h-3 w-3" />
+              Disable notifications
+            </Button>
+          </div>
+        )}
+      </Card>
+    </section>
   );
 }

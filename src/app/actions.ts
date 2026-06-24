@@ -1041,88 +1041,97 @@ export async function deleteFinanceSnapshot(snapshotId: number) {
 export async function recordAppUsage() {
   const user = await getCurrentUser();
   if (!user) return null;
-  const db = getDb();
-  const today = new Date().toISOString().split("T")[0];
+  try {
+    const db = getDb();
+    const today = new Date().toISOString().split("T")[0];
 
-  const existing = await db
-    .select()
-    .from(appUsageLogs)
-    .where(and(eq(appUsageLogs.userId, user.id), eq(appUsageLogs.date, today)))
-    .get();
+    const existing = await db
+      .select()
+      .from(appUsageLogs)
+      .where(and(eq(appUsageLogs.userId, user.id), eq(appUsageLogs.date, today)))
+      .get();
 
-  if (!existing) {
-    await db.insert(appUsageLogs)
-      .values({ userId: user.id, date: today })
-      .run();
+    if (!existing) {
+      await db.insert(appUsageLogs)
+        .values({ userId: user.id, date: today })
+        .run();
+    }
+
+    return await getAppUsageStreak();
+  } catch {
+    return { currentStreak: 0, longestStreak: 0, totalDays: 0, lastUsedDate: null };
   }
-
-  return await getAppUsageStreak();
 }
 
 export async function getAppUsageStreak() {
   const user = await getCurrentUser();
-  if (!user) return { currentStreak: 0, longestStreak: 0, totalDays: 0, lastUsedDate: null as string | null };
-  const db = getDb();
+  const defaultStreak = { currentStreak: 0, longestStreak: 0, totalDays: 0, lastUsedDate: null as string | null };
+  if (!user) return defaultStreak;
+  try {
+    const db = getDb();
 
-  const logs = await db
-    .select({ date: appUsageLogs.date })
-    .from(appUsageLogs)
-    .where(eq(appUsageLogs.userId, user.id))
-    .orderBy(desc(appUsageLogs.date))
-    .all();
+    const logs = await db
+      .select({ date: appUsageLogs.date })
+      .from(appUsageLogs)
+      .where(eq(appUsageLogs.userId, user.id))
+      .orderBy(desc(appUsageLogs.date))
+      .all();
 
-  if (logs.length === 0) {
-    return { currentStreak: 0, longestStreak: 0, totalDays: 0, lastUsedDate: null };
-  }
-
-  const dates = logs.map((l: { date: string }) => l.date);
-  const lastUsedDate = dates[0];
-
-  let currentStreak = 1;
-  const today = new Date().toISOString().split("T")[0];
-  const startDate = dates[0] === today ? today : dates[0];
-
-  for (let i = 1; i < dates.length; i++) {
-    const prev = new Date(dates[i - 1]);
-    const curr = new Date(dates[i]);
-    const diffDays = Math.round((prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 1) {
-      currentStreak++;
-    } else {
-      break;
+    if (logs.length === 0) {
+      return defaultStreak;
     }
-  }
 
-  if (dates[0] !== today) {
-    const lastDate = new Date(dates[0]);
-    const todayDate = new Date(today);
-    const gapDays = Math.round((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (gapDays > 1) {
-      currentStreak = 0;
+    const dates = logs.map((l: { date: string }) => l.date);
+    const lastUsedDate = dates[0];
+
+    let currentStreak = 1;
+    const today = new Date().toISOString().split("T")[0];
+
+    for (let i = 1; i < dates.length; i++) {
+      const prev = new Date(dates[i - 1]);
+      const curr = new Date(dates[i]);
+      const diffDays = Math.round((prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays === 1) {
+        currentStreak++;
+      } else {
+        break;
+      }
     }
-  }
 
-  let longestStreak = 1;
-  let tempStreak = 1;
-  for (let i = 1; i < dates.length; i++) {
-    const prev = new Date(dates[i - 1]);
-    const curr = new Date(dates[i]);
-    const diffDays = Math.round((prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 1) {
-      tempStreak++;
-      longestStreak = Math.max(longestStreak, tempStreak);
-    } else {
-      tempStreak = 1;
+    if (dates[0] !== today) {
+      const lastDate = new Date(dates[0]);
+      const todayDate = new Date(today);
+      const gapDays = Math.round((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (gapDays > 1) {
+        currentStreak = 0;
+      }
     }
-  }
-  longestStreak = Math.max(longestStreak, currentStreak);
 
-  return { currentStreak, longestStreak, totalDays: dates.length, lastUsedDate };
+    let longestStreak = 1;
+    let tempStreak = 1;
+    for (let i = 1; i < dates.length; i++) {
+      const prev = new Date(dates[i - 1]);
+      const curr = new Date(dates[i]);
+      const diffDays = Math.round((prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays === 1) {
+        tempStreak++;
+        longestStreak = Math.max(longestStreak, tempStreak);
+      } else {
+        tempStreak = 1;
+      }
+    }
+    longestStreak = Math.max(longestStreak, currentStreak);
+
+    return { currentStreak, longestStreak, totalDays: dates.length, lastUsedDate };
+  } catch {
+    return defaultStreak;
+  }
 }
 
 export async function checkAndUnlockAchievements(): Promise<string[]> {
   const user = await getCurrentUser();
   if (!user) return [];
+  try {
   const db = getDb();
   const newlyUnlocked: string[] = [];
 
@@ -1310,57 +1319,72 @@ export async function checkAndUnlockAchievements(): Promise<string[]> {
   }
 
   return newlyUnlocked;
+  } catch {
+    return [];
+  }
 }
 
 export async function getUnlockedAchievements() {
   const user = await getCurrentUser();
   if (!user) return [];
-  const db = getDb();
-  return await db
-    .select()
-    .from(achievements)
-    .where(eq(achievements.userId, user.id))
-    .orderBy(desc(achievements.unlockedAt))
-    .all();
+  try {
+    const db = getDb();
+    return await db
+      .select()
+      .from(achievements)
+      .where(eq(achievements.userId, user.id))
+      .orderBy(desc(achievements.unlockedAt))
+      .all();
+  } catch {
+    return [];
+  }
 }
 
 export async function getWhyStatement() {
   const user = await getCurrentUser();
   if (!user) return null;
-  const db = getDb();
-  const motivation = await db
-    .select()
-    .from(userMotivation)
-    .where(eq(userMotivation.userId, user.id))
-    .get();
-  return motivation?.whyStatement ?? null;
+  try {
+    const db = getDb();
+    const motivation = await db
+      .select()
+      .from(userMotivation)
+      .where(eq(userMotivation.userId, user.id))
+      .get();
+    return motivation?.whyStatement ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function saveWhyStatement(statement: string) {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
-  const db = getDb();
+  try {
+    const db = getDb();
 
-  const existing = await db
-    .select()
-    .from(userMotivation)
-    .where(eq(userMotivation.userId, user.id))
-    .get();
-
-  if (existing) {
-    await db.update(userMotivation)
-      .set({ whyStatement: statement, updatedAt: new Date().toISOString() })
+    const existing = await db
+      .select()
+      .from(userMotivation)
       .where(eq(userMotivation.userId, user.id))
-      .run();
-  } else {
-    await db.insert(userMotivation)
-      .values({ userId: user.id, whyStatement: statement })
-      .run();
-  }
+      .get();
 
-  revalidatePath("/");
-  revalidatePath("/settings");
-  return { success: true };
+    if (existing) {
+      await db.update(userMotivation)
+        .set({ whyStatement: statement, updatedAt: new Date().toISOString() })
+        .where(eq(userMotivation.userId, user.id))
+        .run();
+    } else {
+      await db.insert(userMotivation)
+        .values({ userId: user.id, whyStatement: statement })
+        .run();
+    }
+
+    revalidatePath("/");
+    revalidatePath("/settings");
+    return { success: true };
+  } catch {
+    return { error: "Tables not yet migrated. Please run the database migration." };
+  }
 }
 
 export async function getEngagementData() {

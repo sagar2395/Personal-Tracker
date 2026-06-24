@@ -26,11 +26,3 @@ binding = "personal_tracker_cache"
 
 [assets]
 directory = ".open-next/assets"
-
-# Cron triggers for scheduled reminders
-[triggers]
-crons = [
-  "0 6 * * *",   # Daily morning habit reminders (6 AM UTC — adjust to your timezone)
-  "0 21 * * *",  # Evening check-in / "never miss twice" nudge (9 PM UTC)
-  "0 10 * * 0",  # Weekly review prompt (Sunday 10 AM UTC)
-]

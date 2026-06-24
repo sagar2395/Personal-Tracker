@@ -21,11 +21,11 @@ const menuItems = [
     phase: "",
   },
   {
-    href: "#",
+    href: "/review",
     label: "Reviews",
     description: "Daily check-in & weekly review",
     icon: ClipboardCheck,
-    phase: "Phase 3",
+    phase: "",
   },
   {
     href: "#",
@@ -35,11 +35,11 @@ const menuItems = [
     phase: "Phase 4",
   },
   {
-    href: "#",
+    href: "/settings",
     label: "Settings",
     description: "Areas, notifications, data",
     icon: Settings,
-    phase: "Coming soon",
+    phase: "",
   },
 ];
 

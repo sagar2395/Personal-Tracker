@@ -5,7 +5,7 @@ import { habits, habitLogs, streaks } from "@/db/schema/habits";
 import { lifeAreas } from "@/db/schema/areas";
 import { goals } from "@/db/schema/goals";
 import { tasks } from "@/db/schema/tasks";
-import { wins } from "@/db/schema/reviews";
+import { reviews, wins } from "@/db/schema/reviews";
 import { getCurrentUser } from "@/lib/auth";
 import { computeStreak } from "@/lib/streaks";
 import { eq, and, desc, sql, ne, gte, lte, asc } from "drizzle-orm";
@@ -637,4 +637,256 @@ export async function getUpcomingDeadlines(days: number = 7) {
     .all();
 
   return { tasks: deadlineTasks, goals: deadlineGoals };
+}
+
+// ── Review actions ──
+
+type ReviewType = "daily" | "weekly";
+
+export async function saveReview(data: {
+  type: ReviewType;
+  date: string;
+  mood?: number;
+  energy?: number;
+  winsText?: string;
+  challengesText?: string;
+  tomorrowMITs?: string;
+  focusAreas?: string;
+  notes?: string;
+}) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+
+  const existing = db
+    .select()
+    .from(reviews)
+    .where(
+      and(
+        eq(reviews.userId, user.id),
+        eq(reviews.type, data.type),
+        eq(reviews.date, data.date)
+      )
+    )
+    .get();
+
+  if (existing) {
+    db.update(reviews)
+      .set({
+        mood: data.mood ?? null,
+        energy: data.energy ?? null,
+        winsText: data.winsText ?? null,
+        challengesText: data.challengesText ?? null,
+        tomorrowMITs: data.tomorrowMITs ?? null,
+        focusAreas: data.focusAreas ?? null,
+        notes: data.notes ?? null,
+      })
+      .where(eq(reviews.id, existing.id))
+      .run();
+  } else {
+    db.insert(reviews)
+      .values({
+        userId: user.id,
+        type: data.type,
+        date: data.date,
+        mood: data.mood ?? null,
+        energy: data.energy ?? null,
+        winsText: data.winsText ?? null,
+        challengesText: data.challengesText ?? null,
+        tomorrowMITs: data.tomorrowMITs ?? null,
+        focusAreas: data.focusAreas ?? null,
+        notes: data.notes ?? null,
+      })
+      .run();
+  }
+
+  revalidatePath("/review");
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function getReview(type: ReviewType, date: string) {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const db = getDb();
+  return db
+    .select()
+    .from(reviews)
+    .where(
+      and(
+        eq(reviews.userId, user.id),
+        eq(reviews.type, type),
+        eq(reviews.date, date)
+      )
+    )
+    .get() ?? null;
+}
+
+export async function getReviewHistory(type?: ReviewType, limit: number = 30) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const db = getDb();
+  const conditions = [eq(reviews.userId, user.id)];
+  if (type) conditions.push(eq(reviews.type, type));
+  return db
+    .select()
+    .from(reviews)
+    .where(and(...conditions))
+    .orderBy(desc(reviews.date))
+    .limit(limit)
+    .all();
+}
+
+export async function getWeeklyReviewData() {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const db = getDb();
+  const today = new Date();
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString().split("T")[0];
+  const todayStr = today.toISOString().split("T")[0];
+
+  const weekWins = db
+    .select()
+    .from(wins)
+    .where(and(eq(wins.userId, user.id), gte(wins.date, weekAgoStr)))
+    .orderBy(desc(wins.date))
+    .all();
+
+  const completedTasks = db
+    .select()
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.userId, user.id),
+        eq(tasks.status, "done"),
+        gte(tasks.completedAt, weekAgoStr)
+      )
+    )
+    .all();
+
+  const allHabits = db
+    .select()
+    .from(habits)
+    .where(and(eq(habits.userId, user.id), eq(habits.archived, false)))
+    .all();
+
+  const habitSummaries = [];
+  for (const habit of allHabits) {
+    const weekLogs = db
+      .select()
+      .from(habitLogs)
+      .where(
+        and(
+          eq(habitLogs.habitId, habit.id),
+          gte(habitLogs.date, weekAgoStr),
+          lte(habitLogs.date, todayStr)
+        )
+      )
+      .all();
+
+    const area = db
+      .select()
+      .from(lifeAreas)
+      .where(eq(lifeAreas.id, habit.areaId))
+      .get();
+
+    if (habit.type === "build") {
+      const goodDays = weekLogs.filter(
+        (l) => l.status === "done" || l.status === "partial"
+      ).length;
+      habitSummaries.push({
+        habit,
+        area,
+        type: "build" as const,
+        goodDays,
+        totalDays: 7,
+        summary: `${goodDays} of 7 days`,
+      });
+    } else {
+      const loggedDays = weekLogs.filter(
+        (l) => l.status === "clean" || l.status === "under_budget" || l.status === "over_budget" || l.status === "slip"
+      );
+      const avgUsage =
+        loggedDays.length > 0
+          ? loggedDays.reduce((sum, l) => sum + (l.value ?? 0), 0) /
+            loggedDays.length
+          : 0;
+      const cleanDays = weekLogs.filter(
+        (l) => l.status === "clean" || l.status === "under_budget"
+      ).length;
+      habitSummaries.push({
+        habit,
+        area,
+        type: "limit" as const,
+        cleanDays,
+        avgUsage: Math.round(avgUsage),
+        budget: habit.dailyBudgetMins ?? 0,
+        summary:
+          habit.dailyBudgetMins && habit.dailyBudgetMins > 0
+            ? `averaged ${Math.round(avgUsage)} min/day (budget: ${habit.dailyBudgetMins})`
+            : `${cleanDays} of 7 days clean`,
+      });
+    }
+  }
+
+  const areas = db
+    .select()
+    .from(lifeAreas)
+    .where(eq(lifeAreas.userId, user.id))
+    .orderBy(lifeAreas.sortOrder)
+    .all();
+
+  return {
+    weekWins,
+    completedTasks,
+    habitSummaries,
+    areas,
+  };
+}
+
+// ── Area management ──
+
+export async function updateArea(
+  areaId: number,
+  data: {
+    name?: string;
+    color?: string;
+    targetWeeklyHours?: number;
+    isSeason?: boolean;
+    priorityWeight?: number;
+  }
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+  db.update(lifeAreas)
+    .set(data)
+    .where(and(eq(lifeAreas.id, areaId), eq(lifeAreas.userId, user.id)))
+    .run();
+  revalidatePath("/balance");
+  revalidatePath("/review");
+  revalidatePath("/settings");
+  return { success: true };
+}
+
+export async function toggleAreaSeason(areaId: number) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const db = getDb();
+  const area = db
+    .select()
+    .from(lifeAreas)
+    .where(and(eq(lifeAreas.id, areaId), eq(lifeAreas.userId, user.id)))
+    .get();
+  if (!area) return { error: "Area not found" };
+  db.update(lifeAreas)
+    .set({ isSeason: !area.isSeason })
+    .where(eq(lifeAreas.id, areaId))
+    .run();
+  revalidatePath("/balance");
+  revalidatePath("/review");
+  revalidatePath("/settings");
+  return { success: true };
 }

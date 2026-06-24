@@ -41,6 +41,11 @@ yarn-error.log*
 .wrangler/
 .open-next/
 
+# local dev database
+local.db
+local.db-wal
+local.db-shm
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

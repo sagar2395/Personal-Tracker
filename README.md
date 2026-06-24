@@ -63,3 +63,5 @@ See [docs/SETUP.md](docs/SETUP.md) for full setup including Cloudflare D1 and de
 3. **Rituals** — Push notifications, daily check-in, weekly review
 4. **Life admin** — Project templates, finance module
 5. **Household** — Multi-user (wife), shared habits, accountability
+
+##
